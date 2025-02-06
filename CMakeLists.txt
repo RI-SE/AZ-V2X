@@ -34,7 +34,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vanetza::net
     Vanetza::btp
     Vanetza::geonet
-    Vanetza::dcc)
+    Vanetza::dcc
+    PkgConfig::QPID)
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
