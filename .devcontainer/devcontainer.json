@@ -5,6 +5,16 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"context": ".."
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"jebbs.plantuml",
+				"jeff-hykin.better-cpp-syntax",
+				"ms-vscode.cpptools-themes",
+				"ms-vscode.cpptools-extension-pack"
+			]
+		}
 	}
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
