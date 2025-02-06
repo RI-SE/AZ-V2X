@@ -22,7 +22,8 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     libcrypto++-dev \
     libgeographic-dev \
     libssl-dev \
-    ninja-build
+    ninja-build \
+    libqpid-proton-cpp12-dev
 
 # Build and install Vanetza
 WORKDIR /tmp/vanetza
@@ -30,7 +31,7 @@ COPY vanetza .
 RUN mkdir build \
     && cd build \
     && cmake .. \
-    && make \
+    && make -j8\
     && make install
 
 # Set up workspace for main project

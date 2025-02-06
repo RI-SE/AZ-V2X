@@ -8,8 +8,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Find OpenSSL first (required by Vanetza)
+find_package(OpenSSL REQUIRED)
 # Find vanetza package
 find_package(Vanetza REQUIRED)
+# Find qpid-proton using pkg-config
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(QPID REQUIRED IMPORTED_TARGET
+    libqpid-proton
+    libqpid-proton-cpp
+)
 
 # Add source files
 set(SOURCES
