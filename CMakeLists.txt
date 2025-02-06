@@ -19,14 +19,14 @@ pkg_check_modules(QPID REQUIRED IMPORTED_TARGET
     libqpid-proton-cpp
 )
 
-# Add source files
-set(SOURCES
-    src/main.cpp
-    # Add other source files here
+# Collect all source files automatically
+file(GLOB_RECURSE SRC_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
 )
 
 # Add executable
-add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE 
