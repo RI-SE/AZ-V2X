@@ -6,6 +6,7 @@ project(AZ-V2X VERSION 1.0 LANGUAGES CXX)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find vanetza package
 find_package(Vanetza REQUIRED)
@@ -20,7 +21,12 @@ set(SOURCES
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE vanetza)
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    Vanetza::common
+    Vanetza::net
+    Vanetza::btp
+    Vanetza::geonet
+    Vanetza::dcc)
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
