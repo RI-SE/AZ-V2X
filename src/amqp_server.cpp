@@ -21,7 +21,7 @@ void amqp_server::listener_open_handler::on_open(proton::listener& l) {
     cv_.notify_all();
 }
 
-amqp_server::amqp_server(proton::container& cont, const std::string& url, const std::string& address)
+amqp_server::amqp_server(proton::container& cont, const std::string& url)
     : is_ready_(false), 
       listen_handler(server_ready_, is_ready_, lock_)
 {

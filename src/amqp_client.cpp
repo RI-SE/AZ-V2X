@@ -52,7 +52,7 @@ void sender::setup_ssl(proton::container& cont) {
 
 void sender::on_connection_open(proton::connection &cont) {
     std::string subject = cont.transport().ssl().remote_subject();
-    std::cout << "Outgoing client connection connected via SSL.  Server certificate identity " <<
+    std::cout << "Outgoing sender client connection connected via SSL.  Server certificate identity " <<
     find_CN(subject) << std::endl;
 }
 
@@ -93,23 +93,36 @@ receiver::receiver(proton::container& cont, const std::string& url, const std::s
     : work_queue_(0), closed_(false), address_(address)
 {
     // Add SSL setup for receiver
+    setup_ssl(cont);
+    
+    std::cout << "Creating receiver with URL: " << url << " and address: " << address << std::endl;
+    
+    proton::receiver_options ro;
+    ro.credit_window(10)
+      .auto_accept(true)
+      .source(proton::source_options().address(address));
+
+    // Try connecting without concatenating the address to the URL
+    cont.open_receiver(url,  // Changed from url+"/"+address
+                      ro,
+                      proton::connection_options().handler(*this));
+                      
+    OUT(std::cout << "Receiver creation initiated for address: " << address << std::endl);
+}
+
+void receiver::setup_ssl(proton::container& cont) {
     ssl_certificate client_cert = platform_certificate("client", "");
     std::string server_CA = platform_CA("ca");
     proton::ssl_client_options ssl_cli(client_cert, server_CA, proton::ssl::VERIFY_PEER);
     proton::connection_options client_opts;
-    client_opts.ssl_client_options(ssl_cli)
-               .sasl_allowed_mechs("EXTERNAL")
-               .handler(*this);
-    
-    std::string reply_addr = address_; // or however you get the reply address
-    proton::receiver_options ro;
-    ro.credit_window(10)
-    .auto_accept(true)
-    .source(proton::source_options().address(reply_addr));
+    client_opts.ssl_client_options(ssl_cli).sasl_allowed_mechs("EXTERNAL");
+    cont.client_connection_options(client_opts);
+}
 
-    cont.open_receiver(url+"/"+address, 
-                      ro,
-                      client_opts);
+void receiver::on_connection_open(proton::connection &cont) {
+    std::string subject = cont.transport().ssl().remote_subject();
+    std::cout << "Outgoing receiver client connection connected via SSL.  Server certificate identity " <<
+    find_CN(subject) << std::endl;
 }
 
 proton::message receiver::receive() {

@@ -64,8 +64,10 @@ private:
 
     // Handler methods
     void on_receiver_open(proton::receiver& r) override;
+    void on_connection_open(proton::connection& cont) override;
     void on_message(proton::delivery& d, proton::message& m) override;
     void on_error(const proton::error_condition& e) override;
+    void setup_ssl(proton::container& cont);
     
     void receive_done();
 };

@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
         std::string address("examples");
 
         // Create server first
-        amqp_server server(container, url, address);
+        amqp_server server(container, url);
 
         // Start container thread
         auto container_thread = std::thread([&]() { container.run(); });
@@ -35,21 +35,19 @@ int main(int argc, char **argv) {
         std::cout << "Server is ready" << std::endl;
 
         // Create sender and receiver
-        std::string reply_address = "examples-reply";
+        receiver recv(container, url, address);
         sender send(container, url, address);
-        receiver recv(container, url, reply_address);
         
         // Small delay to ensure connections are established
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
         // Send a message
         proton::message msg("Hello, AMQP!");
-        msg.reply_to(reply_address);
-        std::cout << "Sending message to: " << address << " with reply_to: " << reply_address << std::endl;
+        std::cout << "Sending message to: " << address << std::endl;
         send.send(msg);
 
         // Wait for response with timeout
-        std::cout << "Waiting for response on: " << reply_address << std::endl;
+        std::cout << "Waiting for message on: " << address << std::endl;
         auto start_time = std::chrono::steady_clock::now();
         bool received_response = false;
         while (!received_response) {

@@ -27,10 +27,9 @@ private:
     bool is_ready_;
     listener_open_handler listen_handler;
     server_handler s_handler;
-    proton::listener listener_;
 
 public:
-    amqp_server(proton::container& cont, const std::string& url, const std::string& address);
+    amqp_server(proton::container& cont, const std::string& url);
     void on_container_start(proton::container &c) override;
     void on_tracker_accept(proton::tracker &t) override;
     
