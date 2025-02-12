@@ -19,7 +19,7 @@ class closed : public std::runtime_error {
 // A thread-safe sending connection
 class sender : private proton::messaging_handler {
 public:
-    sender(proton::container& cont, const std::string& url, const std::string& address);
+    sender(proton::container& cont, const std::string& url, const std::string& address, const std::string& name = "sender");
     void send(const proton::message& m);
     void close();
     std::string reply_address() const { return address_ + "-reply"; }
@@ -46,7 +46,7 @@ private:
 // A thread-safe receiving connection
 class receiver : private proton::messaging_handler {
 public:
-    receiver(proton::container& cont, const std::string& url, const std::string& address);
+    receiver(proton::container& cont, const std::string& url, const std::string& address, const std::string& name = "receiver");
     proton::message receive();
     void close();
 

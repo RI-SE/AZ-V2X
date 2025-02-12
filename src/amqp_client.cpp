@@ -17,22 +17,22 @@ std::mutex out_lock;
 #define OUT(x) do { std::lock_guard<std::mutex> l(out_lock); x; } while (false)
 
 // Sender implementation
-sender::sender(proton::container& cont, const std::string& url, const std::string& address)
+sender::sender(proton::container& cont, const std::string& url, const std::string& address, const std::string& name)
     : work_queue_(0), queued_(0), credit_(0), address_(address)
 {
     proton::sender_options so;
     so.target(proton::target_options().address(address))
-      .source(proton::source_options().address(address));
+      .source(proton::source_options().address(name + "-source"));
  
     proton::connection_options co;
     co.user("guest")
       .password("guest")
       .handler(*this)
       .sasl_enabled(true)
-      .sasl_allowed_mechs("PLAIN ANONYMOUS"); // Explicitly specify PLAIN authentication
+      .sasl_allowed_mechs("PLAIN ANONYMOUS")
+      .container_id(name);  // Set unique container ID
 
     cont.open_sender(url, so, co);
-
 }
 
 void sender::send(const proton::message& m) {
@@ -95,28 +95,26 @@ void sender::on_error(const proton::error_condition& e) {
 }
 
 // Receiver implementation
-receiver::receiver(proton::container& cont, const std::string& url, const std::string& address)
+receiver::receiver(proton::container& cont, const std::string& url, const std::string& address, const std::string& name)
     : work_queue_(0), closed_(false), address_(address)
 {
-    
     std::cout << "Creating receiver with URL: " << url << " and address: " << address << std::endl;
     
     proton::receiver_options ro;
     ro.credit_window(10)
       .auto_accept(true)
       .source(proton::source_options().address(address))
-      .target(proton::target_options().address(address));
+      .target(proton::target_options().address(name + "-target"));
 
     proton::connection_options co;
     co.user("guest")
       .password("guest")
       .handler(*this)
       .sasl_enabled(true)
-      .sasl_allowed_mechs("PLAIN ANONYMOUS"); // Explicitly specify PLAIN authentication
+      .sasl_allowed_mechs("PLAIN ANONYMOUS")
+      .container_id(name);  // Set unique container ID
 
-    cont.open_receiver(url,
-                      ro,
-                      co);
+    cont.open_receiver(url, ro, co);
 }
 
 void receiver::setup_ssl(proton::container& cont) {
