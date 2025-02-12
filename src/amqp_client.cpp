@@ -170,12 +170,7 @@ void receiver::on_receiver_open(proton::receiver& r) {
 }
 
 void receiver::on_message(proton::delivery& d, proton::message& m) {
-    std::cout << "on_message called with body: " << m.body() << std::endl;  // Debug
-    std::cout << "Message properties: " << std::endl;  // Add detailed message debugging
-    std::cout << "  - Reply to: " << m.reply_to() << std::endl;
-    std::cout << "  - Subject: " << m.subject() << std::endl;
-    std::cout << "  - Content type: " << m.content_type() << std::endl;
-    
+ 
     {  // Add scope for lock
         std::lock_guard<std::mutex> l(lock_);
         buffer_.push(m);
