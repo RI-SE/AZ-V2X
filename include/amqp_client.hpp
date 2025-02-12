@@ -34,7 +34,6 @@ private:
     std::string address_;
 
     // Handler methods
-    void on_connection_open(proton::connection& cont) override;
     void on_sender_open(proton::sender& s) override;
     void on_sendable(proton::sender& s) override;
     void on_error(const proton::error_condition& e) override;
@@ -64,7 +63,6 @@ private:
 
     // Handler methods
     void on_receiver_open(proton::receiver& r) override;
-    void on_connection_open(proton::connection& cont) override;
     void on_message(proton::delivery& d, proton::message& m) override;
     void on_error(const proton::error_condition& e) override;
     void setup_ssl(proton::container& cont);

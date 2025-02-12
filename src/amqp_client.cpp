@@ -7,6 +7,9 @@
 #include <proton/transport.hpp>
 #include <proton/source_options.hpp>
 #include <proton/target.hpp>
+#include <proton/target_options.hpp>
+#include <proton/sender_options.hpp>
+#include <proton/connection_options.hpp>
 #include <iostream>
 
 // Lock output from threads to avoid scrambling
@@ -17,8 +20,18 @@ std::mutex out_lock;
 sender::sender(proton::container& cont, const std::string& url, const std::string& address)
     : work_queue_(0), queued_(0), credit_(0), address_(address)
 {
-    setup_ssl(cont);
-    cont.open_sender(url+"/"+address, proton::connection_options().handler(*this));
+    proton::sender_options so;
+    so.target(proton::target_options().address(address))
+      .source(proton::source_options().address(address));
+ 
+    proton::connection_options co;
+    co.user("guest")
+      .password("guest")
+      .handler(*this)
+      .sasl_enabled(true)
+      .sasl_allowed_mechs("PLAIN ANONYMOUS"); // Explicitly specify PLAIN authentication
+
+    cont.open_sender(url, so, co);
 
 }
 
@@ -50,14 +63,7 @@ void sender::setup_ssl(proton::container& cont) {
     cont.client_connection_options(client_opts);
 }
 
-void sender::on_connection_open(proton::connection &cont) {
-    std::string subject = cont.transport().ssl().remote_subject();
-    std::cout << "Outgoing sender client connection connected via SSL.  Server certificate identity " <<
-    find_CN(subject) << std::endl;
-}
-
 void sender::on_sender_open(proton::sender& s) {
-    std::cout << "Client connected to server" << std::endl;
     std::lock_guard<std::mutex> l(lock_);
     sender_ = s;
     work_queue_ = &s.work_queue();
@@ -92,22 +98,25 @@ void sender::on_error(const proton::error_condition& e) {
 receiver::receiver(proton::container& cont, const std::string& url, const std::string& address)
     : work_queue_(0), closed_(false), address_(address)
 {
-    // Add SSL setup for receiver
-    setup_ssl(cont);
     
     std::cout << "Creating receiver with URL: " << url << " and address: " << address << std::endl;
     
     proton::receiver_options ro;
     ro.credit_window(10)
       .auto_accept(true)
-      .source(proton::source_options().address(address));
+      .source(proton::source_options().address(address))
+      .target(proton::target_options().address(address));
 
-    // Try connecting without concatenating the address to the URL
-    cont.open_receiver(url,  // Changed from url+"/"+address
+    proton::connection_options co;
+    co.user("guest")
+      .password("guest")
+      .handler(*this)
+      .sasl_enabled(true)
+      .sasl_allowed_mechs("PLAIN ANONYMOUS"); // Explicitly specify PLAIN authentication
+
+    cont.open_receiver(url,
                       ro,
-                      proton::connection_options().handler(*this));
-                      
-    OUT(std::cout << "Receiver creation initiated for address: " << address << std::endl);
+                      co);
 }
 
 void receiver::setup_ssl(proton::container& cont) {
@@ -117,12 +126,6 @@ void receiver::setup_ssl(proton::container& cont) {
     proton::connection_options client_opts;
     client_opts.ssl_client_options(ssl_cli).sasl_allowed_mechs("EXTERNAL");
     cont.client_connection_options(client_opts);
-}
-
-void receiver::on_connection_open(proton::connection &cont) {
-    std::string subject = cont.transport().ssl().remote_subject();
-    std::cout << "Outgoing receiver client connection connected via SSL.  Server certificate identity " <<
-    find_CN(subject) << std::endl;
 }
 
 proton::message receiver::receive() {
@@ -163,9 +166,7 @@ void receiver::on_receiver_open(proton::receiver& r) {
     receiver_ = r;
     std::lock_guard<std::mutex> l(lock_);
     work_queue_ = &receiver_.work_queue();
-    std::cout << "Initial credit: " << r.credit() << std::endl;  // Add debug log
     receiver_.add_credit(MAX_BUFFER);
-    std::cout << "After adding credit: " << r.credit() << std::endl;  // Add debug log
     can_receive_.notify_all();
     std::cout << "Receiver connected on address: " << address_ << std::endl;
 }
