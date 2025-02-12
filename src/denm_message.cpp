@@ -317,4 +317,67 @@ TimestampIts_t DenmMessage::createItsTimestamp(time_t unix_timestamp) {
     TimestampIts_t timestamp = {};
     asn_long2INTEGER(&timestamp, msec_since_2004);
     return timestamp;
+}
+
+void DenmMessage::fromUper(const std::vector<unsigned char>& data) {
+    DENM_t* denm = nullptr;
+    asn_dec_rval_t rval;
+    
+    // Decode UPER data into DENM structure
+    rval = uper_decode_complete(
+        nullptr,
+        &asn_DEF_DENM,
+        (void**)&denm,
+        data.data(),
+        data.size()
+    );
+
+    if (rval.code != RC_OK) {
+        ASN_STRUCT_FREE(asn_DEF_DENM, denm);
+        throw std::runtime_error("Failed to decode UPER data");
+    }
+
+    // Check message ID (use ItsPduHeader__messageID_denm instead of messageID_denm)
+    if (denm->header.messageID != ItsPduHeader__messageID_denm) {
+        ASN_STRUCT_FREE(asn_DEF_DENM, denm);
+        throw std::runtime_error("Invalid message ID in decoded DENM");
+    }
+
+    // Management Container
+    auto& mgmt = denm->denm.management;
+    management.actionId = mgmt.actionID.originatingStationID;
+    management.detectionTime = mgmt.detectionTime;
+    management.referenceTime = mgmt.referenceTime;
+    management.eventPosition = mgmt.eventPosition;
+    
+    if (mgmt.relevanceDistance) {
+        management.relevanceDistance = *mgmt.relevanceDistance;
+    }
+    if (mgmt.validityDuration) {
+        management.validityDuration = std::chrono::seconds(*mgmt.validityDuration);
+    }
+
+    // Situation Container
+    if (denm->denm.situation) {
+        auto& sit = *denm->denm.situation;
+        situation.informationQuality = sit.informationQuality;
+        situation.causeCode = sit.eventType.causeCode;
+        situation.subCauseCode = sit.eventType.subCauseCode;
+    }
+
+    // Location Container
+    if (denm->denm.location) {
+        auto& loc = *denm->denm.location;
+        if (loc.eventSpeed) {
+            situation.eventSpeed = static_cast<double>(loc.eventSpeed->speedValue) / 100.0;
+            location.speedConfidence = static_cast<double>(loc.eventSpeed->speedConfidence) / 100.0;
+        }
+        if (loc.eventPositionHeading) {
+            situation.eventHeading = static_cast<double>(loc.eventPositionHeading->headingValue) / 10.0;
+            location.headingConfidence = static_cast<double>(loc.eventPositionHeading->headingConfidence) / 100.0;
+        }
+    }
+
+    // Free the decoded structure
+    ASN_STRUCT_FREE(asn_DEF_DENM, denm);
 } 

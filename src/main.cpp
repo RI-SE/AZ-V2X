@@ -10,6 +10,51 @@
 #include <sstream>
 #include <iomanip>
 
+DenmMessage createDenmMessage() {
+    DenmMessage denm;
+    
+    // Set management container values
+    denm.setActionId(12345);
+    denm.setDetectionTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    denm.setReferenceTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    denm.setEventPosition(52.5200, 13.4050, 30.0); // Example: Berlin coordinates
+    denm.setRelevanceDistance(RelevanceDistance_lessThan100m);
+    denm.setValidityDuration(std::chrono::seconds(300)); // 5 minutes
+
+    // Set situation container values
+    denm.setInformationQuality(3);
+    denm.setCauseCode(CauseCodeType_roadworks);
+    denm.setSubCauseCode(1);
+    denm.setEventSpeed(13.89);
+    denm.setEventHeading(3601);
+
+    // Set location container values
+    denm.setEventPositionConfidence(95);
+    denm.setEventHeadingConfidence(98);
+
+    // Log DENM message details
+    spdlog::debug("Created DENM message with following details:");
+    spdlog::debug("Management Container:");
+    spdlog::debug("  Action ID: {}", denm.getActionId());
+    spdlog::debug("  Detection Time: {}", denm.getDetectionTimeFormatted());
+    spdlog::debug("  Reference Time: {}", denm.getReferenceTimeFormatted());
+    spdlog::debug("  Validity Duration: {}s", denm.getValidityDuration().count());
+    
+    spdlog::debug("Situation Container:");
+    spdlog::debug("  Cause Code: {}", denm.getCauseCode());
+    spdlog::debug("  Sub Cause Code: {}", denm.getSubCauseCode());
+    spdlog::debug("  Information Quality: {}", denm.getInformationQuality());
+    spdlog::debug("  Event Speed: {:.2f} m/s", denm.getEventSpeed());
+    spdlog::debug("  Event Heading: {:.2f} degrees", denm.getEventHeading());
+
+    spdlog::debug("Location Container:");
+    spdlog::debug("  Position Confidence: {:.2f}", denm.getEventPositionConfidence());
+    spdlog::debug("  Heading Confidence: {:.2f}", denm.getEventHeadingConfidence());
+    spdlog::debug("  Speed Confidence: {:.2f}", denm.getEventSpeedConfidence());
+
+    return denm;
+}
+
 int main(int argc, char **argv) {
     try {
         // Set certificate directory
@@ -20,59 +65,12 @@ int main(int argc, char **argv) {
         }
         
         // Create and configure DENM message
-        DenmMessage denm;
-        
-        // Set management container values
-        denm.setActionId(12345);
-        denm.setDetectionTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-        denm.setReferenceTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-        denm.setEventPosition(52.5200, 13.4050, 30.0); // Example: Berlin coordinates
-        denm.setRelevanceDistance(RelevanceDistance_lessThan100m);
-        denm.setValidityDuration(std::chrono::seconds(300)); // 5 minutes
-
-        // Set situation container values
-        denm.setInformationQuality(3);
-        denm.setCauseCode(CauseCodeType_roadworks);
-        denm.setSubCauseCode(1);
-        denm.setEventSpeed(13.89);
-        denm.setEventHeading(3601);
-
-        // Set location container values
-        denm.setEventPositionConfidence(95);
-        denm.setEventHeadingConfidence(98);
-
-        // Log DENM message details
-        spdlog::info("Created DENM message with following details:");
-        spdlog::info("Management Container:");
-        spdlog::info("  Action ID: {}", denm.getActionId());
-        spdlog::info("  Detection Time: {}", denm.getDetectionTimeFormatted());
-        spdlog::info("  Reference Time: {}", denm.getReferenceTimeFormatted());
-        spdlog::info("  Validity Duration: {}s", denm.getValidityDuration().count());
-        
-        spdlog::info("Situation Container:");
-        spdlog::info("  Cause Code: {}", denm.getCauseCode());
-        spdlog::info("  Sub Cause Code: {}", denm.getSubCauseCode());
-        spdlog::info("  Information Quality: {}", denm.getInformationQuality());
-        spdlog::info("  Event Speed: {:.2f} m/s", denm.getEventSpeed());
-        spdlog::info("  Event Heading: {:.2f} degrees", denm.getEventHeading());
-
-        spdlog::info("Location Container:");
-        spdlog::info("  Position Confidence: {:.2f}", denm.getEventPositionConfidence());
-        spdlog::info("  Heading Confidence: {:.2f}", denm.getEventHeadingConfidence());
-        spdlog::info("  Speed Confidence: {:.2f}", denm.getEventSpeedConfidence());
+        DenmMessage denm = createDenmMessage();
 
         // Build the DENM message in a UPER encoded format
         auto denmMessage = denm.buildDenm();
-        auto encodedMessage = denmMessage.encode();
-        std::string encodedMessageString(encodedMessage.begin(), encodedMessage.end());
+        auto encodedDenm = denmMessage.encode();
         
-        // Convert to hex string for logging
-        std::stringstream hexStream;
-        for (unsigned char byte : encodedMessage) {
-            hexStream << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
-        }
-        spdlog::info("UPER encoded DENM message (hex): {}", hexStream.str());
-
         // Create a proton container
         proton::container container;
         
@@ -91,13 +89,14 @@ int main(int argc, char **argv) {
         // Small delay to ensure connections are established
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
         
-        // Send a message
-        proton::message msg("Hello, AMQP!");
-        spdlog::info("Sending message to: {}", address);
-        send.send(msg);
+        // Send the encoded DENM message
+        proton::message amqp_msg;
+        amqp_msg.body(proton::binary(encodedDenm.begin(), encodedDenm.end()));
+        spdlog::info("Sending DENM message to: {}", address);
+        send.send(amqp_msg);
 
         // Wait for response with timeout
-        spdlog::info("Waiting for message on: {}", address);
+        spdlog::info("Waiting for DENM message on: {}", address);
         auto start_time = std::chrono::steady_clock::now();
         bool received_response = false;
         while (!received_response) {
@@ -107,7 +106,23 @@ int main(int argc, char **argv) {
                     spdlog::info("Received empty message");
                     continue;
                 }
-                spdlog::info("Received message: {}", proton::get<std::string>(received.body()));
+                
+                // Decode received DENM message
+                auto receivedData = proton::get<proton::binary>(received.body());
+                DenmMessage receivedDenm;
+                receivedDenm.fromUper(std::vector<unsigned char>(receivedData.data(), receivedData.data() + receivedData.size()));
+                
+                spdlog::info("Received and decoded DENM message:");
+                spdlog::info("Management Container:");
+                spdlog::info("  Action ID: {}", receivedDenm.getActionId());
+                spdlog::info("  Detection Time: {}", receivedDenm.getDetectionTimeFormatted());
+                spdlog::info("  Reference Time: {}", receivedDenm.getReferenceTimeFormatted());
+                
+                spdlog::info("Situation Container:");
+                spdlog::info("  Cause Code: {}", receivedDenm.getCauseCode());
+                spdlog::info("  Sub Cause Code: {}", receivedDenm.getSubCauseCode());
+                spdlog::info("  Event Speed: {:.2f} m/s", receivedDenm.getEventSpeed());
+                
                 received_response = true;
             } catch (const std::exception& e) {
                 auto now = std::chrono::steady_clock::now();

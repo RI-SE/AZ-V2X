@@ -65,6 +65,8 @@ public:
     // Build and get the complete DENM message
     vanetza::asn1::Denm buildDenm() const;
 
+    // Deserialize from UPER encoded data
+    void fromUper(const std::vector<unsigned char>& data);
 
 private:
     // Add private helper methods for timestamp handling

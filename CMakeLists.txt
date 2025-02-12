@@ -38,13 +38,17 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vanetza::dcc
     Vanetza::facilities
     PkgConfig::QPID
+    Vanetza::security
     spdlog)
+
+# Get Vanetza include directories from the targets
+get_target_property(VANETZA_SECURITY_INCLUDE_DIRS Vanetza::security INTERFACE_INCLUDE_DIRECTORIES)
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${spdlog_SOURCE_DIR}
-    ${VANETZA_INCLUDE_DIRS}
+    ${VANETZA_SECURITY_INCLUDE_DIRS}
 )
 
 # Add any additional configurations or targets here
