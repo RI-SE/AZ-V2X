@@ -36,6 +36,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vanetza::btp
     Vanetza::geonet
     Vanetza::dcc
+    Vanetza::facilities
     PkgConfig::QPID
     spdlog)
 
@@ -43,6 +44,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${spdlog_SOURCE_DIR}
+    ${VANETZA_INCLUDE_DIRS}
 )
 
 # Add any additional configurations or targets here
