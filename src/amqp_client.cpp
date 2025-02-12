@@ -11,6 +11,7 @@
 #include <proton/sender_options.hpp>
 #include <proton/connection_options.hpp>
 #include <iostream>
+#include <spdlog/spdlog.h>
 
 // Lock output from threads to avoid scrambling
 std::mutex out_lock;
@@ -68,11 +69,10 @@ void sender::on_sender_open(proton::sender& s) {
     sender_ = s;
     work_queue_ = &s.work_queue();
 
-    std::cout << "client sender opened."
-            << "\n  Target address: '" << s.target().address() << "'"
-            << "\n  Target dynamic: " << s.target().dynamic()
-            << "\n  Connection target: '" << s.connection().container_id() << "'"
-            << std::endl;
+    spdlog::info("Client sender opened.");
+    spdlog::info("  Target address: '{}'", s.target().address());
+    spdlog::info("  Target dynamic: {}", s.target().dynamic());
+    spdlog::info("  Connection target: '{}'", s.connection().container_id());
 }
 
 void sender::on_sendable(proton::sender& s) {
@@ -90,7 +90,7 @@ void sender::do_send(const proton::message& m) {
 }
 
 void sender::on_error(const proton::error_condition& e) {
-    OUT(std::cerr << "unexpected error: " << e << std::endl);
+    spdlog::error("Unexpected error: {}", e.what());
     exit(1);
 }
 
@@ -98,7 +98,7 @@ void sender::on_error(const proton::error_condition& e) {
 receiver::receiver(proton::container& cont, const std::string& url, const std::string& address, const std::string& name)
     : work_queue_(0), closed_(false), address_(address)
 {
-    std::cout << "Creating receiver with URL: " << url << " and address: " << address << std::endl;
+    spdlog::info("Creating receiver with URL: {} and address: {}", url, address);
     
     proton::receiver_options ro;
     ro.credit_window(10)
@@ -128,21 +128,20 @@ void receiver::setup_ssl(proton::container& cont) {
 
 proton::message receiver::receive() {
     std::unique_lock<std::mutex> l(lock_);
-    std::cout << "Waiting for message..." << std::endl;  // Debug
+    spdlog::debug("Waiting for message...");
               
     while (!closed_ && (!work_queue_ || buffer_.empty())) {
-        std::cout << "About to wait on condition..." << std::endl;  // Add this debug line
+        spdlog::debug("About to wait on condition...");
         can_receive_.wait(l);
-        std::cout << "Woke up from wait! closed_: " << closed_ 
-                  << ", work_queue_: " << (work_queue_ != nullptr)
-                  << ", buffer size: " << buffer_.size() << std::endl;  // Add this debug line
+        spdlog::debug("Woke up from wait! closed_: {}, work_queue_: {}, buffer size: {}", 
+                     closed_, (work_queue_ != nullptr), buffer_.size());
     }
     if (closed_) throw closed("receiver closed");
     if (buffer_.empty()) {
-        std::cout << "Buffer is empty after wait!" << std::endl;  // Debug
+        spdlog::debug("Buffer is empty after wait!");
         throw std::runtime_error("No message available");
     }
-    std::cout << "Message received, returning it..." << std::endl;  // Debug
+    spdlog::debug("Message received, returning it...");
     proton::message m = std::move(buffer_.front());
     buffer_.pop();
     work_queue_->add([=]() { this->receive_done(); });
@@ -166,17 +165,16 @@ void receiver::on_receiver_open(proton::receiver& r) {
     work_queue_ = &receiver_.work_queue();
     receiver_.add_credit(MAX_BUFFER);
     can_receive_.notify_all();
-    std::cout << "Receiver connected on address: " << address_ << std::endl;
+    spdlog::info("Receiver connected on address: {}", address_);
 }
 
 void receiver::on_message(proton::delivery& d, proton::message& m) {
- 
-    {  // Add scope for lock
+    {
         std::lock_guard<std::mutex> l(lock_);
         buffer_.push(m);
-        std::cout << "Message pushed to buffer. New buffer size: " << buffer_.size() << std::endl;
+        spdlog::debug("Message pushed to buffer. New buffer size: {}", buffer_.size());
         can_receive_.notify_all();
-        std::cout << "Notified waiting threads" << std::endl;
+        spdlog::debug("Notified waiting threads");
     }
 }
 
@@ -185,6 +183,6 @@ void receiver::receive_done() {
 }
 
 void receiver::on_error(const proton::error_condition& e) {
-    OUT(std::cerr << "unexpected error: " << e << std::endl);
+    spdlog::error("Unexpected error: {}", e.what());
     exit(1);
 }

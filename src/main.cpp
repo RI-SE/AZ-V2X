@@ -5,6 +5,7 @@
 #include <iostream>
 #include <thread>
 #include <string>
+#include <spdlog/spdlog.h>
 
 int main(int argc, char **argv) {
     try {
@@ -21,7 +22,7 @@ int main(int argc, char **argv) {
         // Create URL and address
         std::string url("amqp://localhost:5672");
         std::string address("examples");
-
+        spdlog::info("Connecting to AMQP server at {}", url);
 
         // Start container thread
         auto container_thread = std::thread([&]() { container.run(); });
@@ -35,27 +36,27 @@ int main(int argc, char **argv) {
         
         // Send a message
         proton::message msg("Hello, AMQP!");
-        std::cout << "Sending message to: " << address << std::endl;
+        spdlog::info("Sending message to: {}", address);
         send.send(msg);
 
         // Wait for response with timeout
-        std::cout << "Waiting for message on: " << address << std::endl;
+        spdlog::info("Waiting for message on: {}", address);
         auto start_time = std::chrono::steady_clock::now();
         bool received_response = false;
         while (!received_response) {
             try {
                 auto received = recv.receive();
                 if (received.body().empty()) {
-                    std::cout << "Received empty message" << std::endl;
+                    spdlog::info("Received empty message");
                     continue;
                 }
-                std::cout << "Received message: " << received.body() << std::endl;
+                spdlog::info("Received message: {}", proton::get<std::string>(received.body()));
                 received_response = true;
             } catch (const std::exception& e) {
                 auto now = std::chrono::steady_clock::now();
                 if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() > 5) {
-                    std::cout << "Timeout waiting for response" << std::endl;
-                    std::cout << "Last error: " << e.what() << std::endl;
+                    spdlog::error("Timeout waiting for response");
+                    spdlog::error("Last error: {}", e.what());
                     break;
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));

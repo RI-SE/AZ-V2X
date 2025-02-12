@@ -7,6 +7,7 @@ project(AZ-V2X VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/fetchExternalDeps.cmake")
 
 # Find OpenSSL first (required by Vanetza)
 find_package(OpenSSL REQUIRED)
@@ -35,11 +36,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vanetza::btp
     Vanetza::geonet
     Vanetza::dcc
-    PkgConfig::QPID)
+    PkgConfig::QPID
+    spdlog)
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${spdlog_SOURCE_DIR}
 )
 
 # Add any additional configurations or targets here
