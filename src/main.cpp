@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <iomanip>
+#include <boost/program_options.hpp>
 
 DenmMessage createDenmMessage() {
     DenmMessage denm;
@@ -57,12 +58,43 @@ DenmMessage createDenmMessage() {
 
 int main(int argc, char **argv) {
     try {
-        // Set certificate directory
-        if (argc > 1) {
-            set_cert_directory(argv[1]);
-        } else {
-            set_cert_directory("ssl-certs/");
+        namespace po = boost::program_options;
+
+        // Declare the supported options
+        po::options_description desc("Allowed options");
+        desc.add_options()
+            ("help,h", "produce help message")
+            ("cert-dir,c", po::value<std::string>()->default_value("ssl-certs/"), 
+             "directory containing SSL certificates")
+            ("log-level,l", po::value<std::string>()->default_value("info"),
+             "logging level (debug, info, warn, error)")
+        ;
+
+        po::variables_map vm;
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::notify(vm);
+
+        if (vm.count("help")) {
+            std::cout << desc << "\n";
+            return 0;
         }
+
+        // Set log level
+        std::string log_level = vm["log-level"].as<std::string>();
+        if (log_level == "debug") {
+            spdlog::set_level(spdlog::level::debug);
+        } else if (log_level == "info") {
+            spdlog::set_level(spdlog::level::info);
+        } else if (log_level == "warn") {
+            spdlog::set_level(spdlog::level::warn);
+        } else if (log_level == "error") {
+            spdlog::set_level(spdlog::level::err);
+        } else {
+            throw std::runtime_error("Invalid log level: " + log_level);
+        }
+
+        // Set certificate directory
+        set_cert_directory(vm["cert-dir"].as<std::string>());
         
         // Create and configure DENM message
         DenmMessage denm = createDenmMessage();
@@ -83,8 +115,8 @@ int main(int argc, char **argv) {
         auto container_thread = std::thread([&]() { container.run(); });
 
         // Create sender and receiver
-        receiver recv(container, url, address);
-        sender send(container, url, address);
+        sender send(container, url, address, "sender");
+        receiver recv(container, url, address, "receiver");
         
         // Small delay to ensure connections are established
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); 

@@ -11,6 +11,8 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/fetchExternalDeps.cmake")
 
 # Find OpenSSL first (required by Vanetza)
 find_package(OpenSSL REQUIRED)
+# Find boost program options
+find_package(Boost REQUIRED COMPONENTS program_options)
 # Find vanetza package
 find_package(Vanetza REQUIRED)
 # Find qpid-proton using pkg-config
@@ -39,6 +41,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vanetza::facilities
     PkgConfig::QPID
     Vanetza::security
+    Boost::program_options
     spdlog)
 
 # Get Vanetza include directories from the targets
@@ -49,6 +52,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${spdlog_SOURCE_DIR}
     ${VANETZA_SECURITY_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
 )
 
 # Add any additional configurations or targets here
