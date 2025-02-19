@@ -3,6 +3,8 @@
 #include <boost/program_options.hpp>
 #include <spdlog/spdlog.h>
 #include <csignal>
+#include <condition_variable>
+#include <mutex>
 
 std::unique_ptr<DenmService> service;
 
@@ -87,6 +89,21 @@ int main(int argc, char **argv) {
 
         spdlog::info("Starting DENM service...");
         service->start();
+
+        // Keep main thread alive until signal is received
+        std::condition_variable cv;
+        std::mutex mtx;
+        std::unique_lock<std::mutex> lock(mtx);
+        
+        auto old_handler = signal(SIGINT, [](int) {
+            if (service) {
+                service->stop();
+            }
+            exit(0);  // Force exit if service->stop() doesn't complete
+        });
+
+        // Wait indefinitely
+        cv.wait(lock);
 
         return 0;
     } catch (const std::exception& e) {

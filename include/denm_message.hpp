@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "crow.h"
 
 class DenmMessage {
 public:
@@ -80,6 +81,9 @@ public:
 
     // Deserialize from UPER encoded data
     void fromUper(const std::vector<unsigned char>& data);
+
+    // New: Convert the decoded message to a JSON representation
+    crow::json::wvalue toJson() const;
 
 private:
     // Add private helper methods for timestamp handling

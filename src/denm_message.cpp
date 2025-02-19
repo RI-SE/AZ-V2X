@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <sstream>
 #include <spdlog/spdlog.h>
+#include "crow.h"
 
 // Add private helper function declarations to the header first
 
@@ -518,4 +519,36 @@ void DenmMessage::fromUper(const std::vector<unsigned char>& data) {
     // Free the decoded structure
     ASN_STRUCT_FREE(asn_DEF_DENM, denm);
     spdlog::debug("DENM decoding completed successfully");
+}
+
+// New method: Convert the DENM message to JSON.
+crow::json::wvalue DenmMessage::toJson() const {
+    crow::json::wvalue j;
+    // Header
+    j["header"]["protocolVersion"] = header.protocolVersion;
+    j["header"]["messageId"] = header.messageId;
+    j["header"]["stationId"] = header.stationId;
+    
+    // Management Container
+    j["management"]["actionId"] = management.actionId;
+    j["management"]["detectionTime"] = getDetectionTimeFormatted();
+    j["management"]["referenceTime"] = getReferenceTimeFormatted();
+    j["management"]["stationType"] = management.stationType;
+    j["management"]["eventPosition"]["latitude"] = management.eventPosition.latitude;
+    j["management"]["eventPosition"]["longitude"] = management.eventPosition.longitude;
+    // Optionally, add altitude conversion here if desired.
+
+    // Situation Container
+    j["situation"]["informationQuality"] = situation.informationQuality;
+    j["situation"]["causeCode"] = situation.causeCode;
+    j["situation"]["subCauseCode"] = situation.subCauseCode;
+    j["situation"]["eventSpeed"] = situation.eventSpeed;
+    j["situation"]["eventHeading"] = situation.eventHeading;
+    
+    // Location Container
+    j["location"]["positionConfidence"] = location.positionConfidence;
+    j["location"]["headingConfidence"] = location.headingConfidence;
+    j["location"]["speedConfidence"] = location.speedConfidence;
+    
+    return j;
 }

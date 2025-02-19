@@ -14,6 +14,7 @@ DenmService::DenmService(
 )
     : amqp_url_(amqp_url)
     , amqp_send_address_(amqp_send_address)
+    , amqp_receive_address_(amqp_receive_address)
     , http_host_(http_host)
     , http_port_(http_port)
     , ws_port_(ws_port)
@@ -21,7 +22,7 @@ DenmService::DenmService(
     , sender_mode_(sender_mode)
     , amqp_container_(std::make_unique<proton::container>())
     , running_(false) {
-    
+        // Setup HTTP routes (including WebSocket)
     setupRoutes();
 }
 
@@ -115,6 +116,28 @@ void DenmService::setupRoutes() {
             this->handleDenmPost(req, res);
             return res;
         });
+
+    // New WebSocket endpoint for relaying AMQP messages to the Vue.js client
+    CROW_ROUTE(app_, "/ws")
+    .websocket()
+    .onopen([this](crow::websocket::connection& conn) {
+         {
+             std::lock_guard<std::mutex> lock(ws_connections_mutex_);
+             ws_connections_.insert(&conn);
+         }
+         spdlog::info("WebSocket connection opened.");
+    })
+    .onclose([this](crow::websocket::connection& conn, const std::string& reason) {
+         {
+             std::lock_guard<std::mutex> lock(ws_connections_mutex_);
+             ws_connections_.erase(&conn);
+         }
+         spdlog::info("WebSocket connection closed: {}", reason);
+    })
+    .onmessage([](crow::websocket::connection& conn, const std::string& data, bool is_binary) {
+         // Optionally react to messages from the frontend
+         spdlog::debug("Received WS message: {}", data);
+    });
 }
 
 void DenmService::handleDenmPost(const crow::request& req, crow::response& res) {
@@ -126,6 +149,13 @@ void DenmService::handleDenmPost(const crow::request& req, crow::response& res) 
             return;
         }
         
+        // Check if sender is available
+        if (!amqp_sender_) {
+            res.code = 503;
+            res.write("{\"error\":\"AMQP sender not available\"}");
+            return;
+        }
+
         // Create DENM message from JSON
         auto denm = createDenmFromJson(j);
         
@@ -157,11 +187,16 @@ void DenmService::handleDenmPost(const crow::request& req, crow::response& res) 
         std::string quadTree = calculateQuadTree(j["latitude"].d(), j["longitude"].d());
         amqp_msg.properties().put("quadTree", "," + quadTree + ",");
         
-        // Send message using our sender class
-        amqp_sender_->send(amqp_msg);
-        
-        res.code = 200;
-        res.write("{\"status\":\"success\"}");
+        // Send message using our sender class with a timeout
+        try {
+            amqp_sender_->send(amqp_msg);
+            res.code = 200;
+            res.write("{\"status\":\"success\"}");
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to send AMQP message: {}", e.what());
+            res.code = 500;
+            res.write("{\"error\":\"Failed to send message\"}");
+        }
         
     } catch (const std::exception& e) {
         spdlog::error("Error processing DENM request: {}", e.what());
@@ -203,17 +238,19 @@ void DenmService::start() {
     
     running_ = true;
     
-    // Create AMQP sender first
-    try {
-        spdlog::debug("Creating AMQP sender with URL: {} and address: {}", amqp_url_, amqp_send_address_);
-        amqp_sender_ = std::make_unique<sender>(*amqp_container_, amqp_url_, amqp_send_address_, "denm-sender");
-    } catch (const std::exception& e) {
-        spdlog::error("Failed to create AMQP sender: {}", e.what());
-        running_ = false;
-        throw;
+    // Optionally create AMQP sender if in sender mode
+    if (sender_mode_) {
+        try {
+            spdlog::debug("Creating AMQP sender with URL: {} and address: {}", amqp_url_, amqp_send_address_);
+            amqp_sender_ = std::make_unique<sender>(*amqp_container_, amqp_url_, amqp_send_address_, "denm-sender");
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to create AMQP sender: {}", e.what());
+            running_ = false;
+            throw;
+        }
     }
     
-    // Start AMQP container in a separate thread
+    // Start AMQP container in a separate thread (handles both sender and receiver)
     container_thread_ = std::thread([this]() {
         try {
             spdlog::debug("Starting AMQP container");
@@ -223,18 +260,22 @@ void DenmService::start() {
         }
     });
     
-    // Configure HTTP server
-    app_.loglevel(crow::LogLevel::Warning);  // Reduce noise from Crow
-    
-    // Start HTTP server (this will block)
-    spdlog::info("Starting HTTP server on {}:{}", http_host_, http_port_);
-    try {
-        // Use "0.0.0.0" to bind to all available network interfaces
+    // Start HTTP server (with WebSocket support) in a separate thread
+    http_thread_ = std::thread([this]() {
+        spdlog::info("Starting HTTP server on {}:{}", http_host_, http_port_);
         app_.bindaddr("0.0.0.0").port(http_port_).run();
-    } catch (const std::exception& e) {
-        spdlog::error("HTTP server error: {}", e.what());
-        stop();  // Clean up AMQP resources
-        throw;
+    });
+    
+    // Create and start AMQP receiver loop if in receiver mode
+    if (receiver_mode_) {
+        try {
+            spdlog::debug("Creating AMQP receiver with URL: {} and address: {}", amqp_url_, amqp_receive_address_);
+            amqp_receiver_ = std::make_unique<receiver>(*amqp_container_, amqp_url_, amqp_receive_address_, "denm-receiver");
+            amqp_receiver_thread_ = std::thread([this]() { runReceiverLoop(); });
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to create AMQP receiver: {}", e.what());
+            // Continue without AMQP receive functionality
+        }
     }
 }
 
@@ -243,15 +284,66 @@ void DenmService::stop() {
     
     running_ = false;
     
-    // Stop HTTP server
-    app_.stop();
+    // First stop the AMQP container to prevent new messages
+    amqp_container_->stop();
     
-    // Close AMQP sender and stop container
+    // Close AMQP sender and receiver if they exist
     if (amqp_sender_) {
         amqp_sender_->close();
     }
+    if (amqp_receiver_) {
+        amqp_receiver_->close();
+    }
     
+    // Stop the HTTP server (which stops WebSocket and REST endpoints)
+    app_.stop();
+    
+    // Join the threads in reverse order of creation
+    if (amqp_receiver_thread_.joinable()) {
+        amqp_receiver_thread_.join();
+    }
+    if (http_thread_.joinable()) {
+        http_thread_.join();
+    }
     if (container_thread_.joinable()) {
         container_thread_.join();
+    }
+}
+
+// New helper method to broadcast a message to all connected WebSocket clients.
+void DenmService::broadcastMessage(const std::string& message) {
+    std::lock_guard<std::mutex> lock(ws_connections_mutex_);
+    for (auto* conn : ws_connections_) {
+        conn->send_text(message);
+    }
+}
+
+// New helper method that runs in a loop to receive AMQP messages and broadcast them as JSON via WebSocket.
+void DenmService::runReceiverLoop() {
+    while (running_) {
+        try {
+            // Remove the duration parameter since receive() doesn't accept it
+            proton::message m = amqp_receiver_->receive();
+            if (!running_) break;  // Check if we should exit
+            
+            // Process only binary messages (i.e. UPER encoded DENM)
+            if (m.body().type() == proton::BINARY) {
+                auto data = proton::get<proton::binary>(m.body());
+                DenmMessage denm;
+                denm.fromUper(data);
+                auto j = denm.toJson();
+                std::string json_str = j.dump();
+                spdlog::info("Broadcasting message over WebSocket: {}", json_str);
+                broadcastMessage(json_str);
+            } else {
+                spdlog::warn("Received AMQP message is not binary.");
+            }
+        } catch (const proton::timeout_error&) {
+            // Timeout is expected, continue the loop
+            continue;
+        } catch (const std::exception& e) {
+            spdlog::error("Error in AMQP receiver loop: {}", e.what());
+            if (!running_) break;  // Exit if we're shutting down
+        }
     }
 }

@@ -36,6 +36,9 @@ private:
     DenmMessage createDenmFromJson(const crow::json::rvalue& j);
     void setupRoutes();
 
+    void broadcastMessage(const std::string& message);
+    void runReceiverLoop();
+
     class AmqpHandler : public proton::messaging_handler {
     public:
         AmqpHandler(DenmService& service);
@@ -69,11 +72,16 @@ private:
     
     crow::App<> app_;  // Crow application instance
     std::mutex ws_connections_mutex_;
-    
+    // Container of active websocket connections
+    std::set<crow::websocket::connection*> ws_connections_;
+
     std::thread amqp_thread_;
     std::thread http_thread_;
     std::thread ws_thread_;
+    std::thread amqp_receiver_thread_;
+    std::thread container_thread_;
 
     std::unique_ptr<sender> amqp_sender_;
-    std::thread container_thread_;
+    std::unique_ptr<receiver> amqp_receiver_;
+
 }; 
