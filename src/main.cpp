@@ -27,12 +27,20 @@ int main(int argc, char **argv) {
              "logging level (debug, info, warn, error)")
             ("amqp-url", po::value<std::string>()->default_value("amqp://localhost:5672"),
              "AMQP broker URL")
-            ("amqp-address", po::value<std::string>()->default_value("examples"),
-             "AMQP address")
+            ("amqp-send", po::value<std::string>()->default_value("examples"),
+             "AMQP send address")
+            ("amqp-receive", po::value<std::string>()->default_value("examples"),
+             "AMQP receive address")
             ("http-host", po::value<std::string>()->default_value("localhost"),
              "HTTP server host")
             ("http-port", po::value<int>()->default_value(8080),
              "HTTP server port")
+            ("ws-port", po::value<int>()->default_value(8081),
+             "WebSocket server port")
+            ("receiver", po::value<bool>()->default_value(true),
+             "Enable receiver mode")
+            ("sender", po::value<bool>()->default_value(true),
+             "Enable sender mode")
         ;
 
         po::variables_map vm;
@@ -68,9 +76,13 @@ int main(int argc, char **argv) {
         // Create and start service
         service = std::make_unique<DenmService>(
             vm["amqp-url"].as<std::string>(),
-            vm["amqp-address"].as<std::string>(),
+            vm["amqp-send"].as<std::string>(),
+            vm["amqp-receive"].as<std::string>(),
             vm["http-host"].as<std::string>(),
-            vm["http-port"].as<int>()
+            vm["http-port"].as<int>(),
+            vm["ws-port"].as<int>(),
+            vm["receiver"].as<bool>(),
+            vm["sender"].as<bool>()
         );
 
         spdlog::info("Starting DENM service...");

@@ -11,28 +11,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Include external dependencies
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/fetchExternalDeps.cmake")
 
-# Add cpp-httplib
+# Add Crow
 FetchContent_Declare(
-    cpp-httplib
-    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG v0.14.1
+    crow
+    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+    GIT_TAG v1.0+5
 )
-FetchContent_MakeAvailable(cpp-httplib)
-
-# Add nlohmann_json
-FetchContent_Declare(
-    json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.2
-)
-FetchContent_MakeAvailable(json)
+FetchContent_MakeAvailable(crow)
 
 # Enable testing
 enable_testing()
 
 # Find required packages
 find_package(OpenSSL REQUIRED)
-find_package(Boost REQUIRED COMPONENTS program_options)
+find_package(Boost REQUIRED COMPONENTS program_options system)
 find_package(Vanetza REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(QPID REQUIRED IMPORTED_TARGET
@@ -87,8 +79,7 @@ target_link_libraries(${PROJECT_NAME}_lib PUBLIC
     Vanetza::security
     Boost::program_options
     spdlog
-    httplib::httplib
-    nlohmann_json::nlohmann_json
+    Crow::Crow
 )
 
 # Add main executable

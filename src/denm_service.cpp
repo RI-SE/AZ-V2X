@@ -2,14 +2,24 @@
 #include "geo_utils.hpp"
 #include <spdlog/spdlog.h>
 
-DenmService::DenmService(const std::string& amqp_url, const std::string& amqp_address,
-                       const std::string& http_host, int http_port)
+DenmService::DenmService(
+    const std::string& amqp_url, 
+    const std::string& amqp_send_address,
+    const std::string& amqp_receive_address,
+    const std::string& http_host,
+    int http_port,
+    int ws_port,
+    bool receiver_mode,
+    bool sender_mode
+)
     : amqp_url_(amqp_url)
-    , amqp_address_(amqp_address)
+    , amqp_send_address_(amqp_send_address)
     , http_host_(http_host)
     , http_port_(http_port)
-    , server_(std::make_unique<httplib::Server>())
-    , container_(std::make_unique<proton::container>())
+    , ws_port_(ws_port)
+    , receiver_mode_(receiver_mode)
+    , sender_mode_(sender_mode)
+    , amqp_container_(std::make_unique<proton::container>())
     , running_(false) {
     
     setupRoutes();
@@ -21,10 +31,12 @@ DenmService::~DenmService() {
 
 void DenmService::setupRoutes() {
     // Setup Swagger documentation endpoint
-    server_->Get("/api-docs", [](const httplib::Request&, httplib::Response& res) {
-        // Serve Swagger UI
-        res.set_content(R"(
-            <!DOCTYPE html>
+    CROW_ROUTE(app_, "/api-docs")
+    ([](const crow::request&) {
+        crow::response res;
+        res.code = 200;
+        res.set_header("Content-Type", "text/html");
+        res.body = R"(<!DOCTYPE html>
             <html>
             <head>
                 <title>DENM Service API Documentation</title>
@@ -42,73 +54,77 @@ void DenmService::setupRoutes() {
                     }
                 </script>
             </body>
-            </html>
-        )", "text/html");
+            </html>)";
+        return res;
     });
 
     // Serve Swagger JSON specification
-    server_->Get("/swagger.json", [](const httplib::Request&, httplib::Response& res) {
-        nlohmann::json swagger = {
-            {"openapi", "3.0.0"},
-            {"info", {
-                {"title", "DENM Message Service API"},
-                {"version", "1.0.0"},
-                {"description", "API for sending DENM messages via AMQP"}
-            }},
-            {"paths", {
-                {"/denm", {
-                    {"post", {
-                        {"summary", "Send a DENM message"},
-                        {"requestBody", {
-                            {"required", true},
-                            {"content", {
-                                {"application/json", {
-                                    {"schema", {
-                                        {"type", "object"},
-                                        {"properties", {
-                                            {"stationId", {{"type", "integer"}}},
-                                            {"actionId", {{"type", "integer"}}},
-                                            {"latitude", {{"type", "number"}}},
-                                            {"longitude", {{"type", "number"}}},
-                                            {"altitude", {{"type", "number"}}},
-                                            {"causeCode", {{"type", "integer"}}},
-                                            {"subCauseCode", {{"type", "integer"}}},
-                                            {"publisherId", {{"type", "string"}}},
-                                            {"originatingCountry", {{"type", "string"}}}
-                                        }},
-                                        {"required", {"stationId", "latitude", "longitude", "publisherId", "originatingCountry"}}
-                                    }}
-                                }}
-                            }}
-                        }},
-                        {"responses", {
-                            {"200", {
-                                {"description", "DENM message sent successfully"}
-                            }},
-                            {"400", {
-                                {"description", "Invalid request"}
-                            }},
-                            {"500", {
-                                {"description", "Internal server error"}
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        };
+    CROW_ROUTE(app_, "/swagger.json")
+    ([](const crow::request&) {
+        crow::json::wvalue swagger;
         
-        res.set_content(swagger.dump(2), "application/json");
+        // Build the swagger object step by step
+        swagger["openapi"] = "3.0.0";
+        
+        // Info object
+        swagger["info"]["title"] = "DENM Service API Documentation";
+        swagger["info"]["version"] = "1.0.0";
+        swagger["info"]["description"] = "API for sending DENM messages via AMQP";
+        
+        // Paths object
+        auto& denm_path = swagger["paths"]["/denm"]["post"];
+        denm_path["summary"] = "Send a DENM message";
+        
+        // Request body
+        auto& req_body = denm_path["requestBody"];
+        req_body["required"] = true;
+        auto& content = req_body["content"]["application/json"]["schema"];
+        content["type"] = "object";
+        content["required"] = crow::json::wvalue::list{"stationId", "latitude", "longitude", "publisherId", "originatingCountry"};
+        
+        // Properties
+        auto& properties = content["properties"];
+        properties["stationId"]["type"] = "integer";
+        properties["actionId"]["type"] = "integer";
+        properties["latitude"]["type"] = "number";
+        properties["longitude"]["type"] = "number";
+        properties["altitude"]["type"] = "number";
+        properties["causeCode"]["type"] = "integer";
+        properties["subCauseCode"]["type"] = "integer";
+        properties["publisherId"]["type"] = "string";
+        properties["originatingCountry"]["type"] = "string";
+        
+        // Responses
+        auto& responses = denm_path["responses"];
+        responses["200"]["description"] = "DENM message sent successfully";
+        responses["200"]["content"]["application/json"]["schema"]["type"] = "object";
+        responses["200"]["content"]["application/json"]["schema"]["properties"]["status"]["type"] = "string";
+        
+        responses["400"]["description"] = "Invalid request";
+        responses["400"]["content"]["application/json"]["schema"]["type"] = "object";
+        responses["400"]["content"]["application/json"]["schema"]["properties"]["error"]["type"] = "string";
+        
+        return crow::response(200, swagger);
     });
 
     // DENM message endpoint
-    server_->Post("/denm", [this](const httplib::Request& req, httplib::Response& res) {
-        this->handleDenmPost(req, res);
-    });
+    CROW_ROUTE(app_, "/denm")
+        .methods("POST"_method)
+        ([this](const crow::request& req) {
+            crow::response res;
+            this->handleDenmPost(req, res);
+            return res;
+        });
 }
 
-void DenmService::handleDenmPost(const httplib::Request& req, httplib::Response& res) {
+void DenmService::handleDenmPost(const crow::request& req, crow::response& res) {
     try {
-        auto j = nlohmann::json::parse(req.body);
+        auto j = crow::json::load(req.body);
+        if (!j) {
+            res.code = 400;
+            res.write("{\"error\":\"Invalid JSON\"}");
+            return;
+        }
         
         // Create DENM message from JSON
         auto denm = createDenmFromJson(j);
@@ -129,55 +145,55 @@ void DenmService::handleDenmPost(const httplib::Request& req, httplib::Response&
         amqp_msg.priority(1);
         
         // Set application properties
-        amqp_msg.properties().put("publisherId", j["publisherId"].get<std::string>());
-        amqp_msg.properties().put("publicationId", j["publisherId"].get<std::string>() + ":DENM_001");
-        amqp_msg.properties().put("originatingCountry", j["originatingCountry"].get<std::string>());
+        amqp_msg.properties().put("publisherId", j["publisherId"].s());
+        amqp_msg.properties().put("publicationId", std::string(j["publisherId"].s()) + ":DENM_001");
+        amqp_msg.properties().put("originatingCountry", j["originatingCountry"].s());
         amqp_msg.properties().put("protocolVersion", "DENM:1.2.2");
         amqp_msg.properties().put("messageType", "DENM");
-        amqp_msg.properties().put("latitude", j["latitude"].get<double>());
-        amqp_msg.properties().put("longitude", j["longitude"].get<double>());
+        amqp_msg.properties().put("latitude", j["latitude"].d());
+        amqp_msg.properties().put("longitude", j["longitude"].d());
         
         // Calculate and set quadTree
-        std::string quadTree = calculateQuadTree(j["latitude"].get<double>(), j["longitude"].get<double>());
+        std::string quadTree = calculateQuadTree(j["latitude"].d(), j["longitude"].d());
         amqp_msg.properties().put("quadTree", "," + quadTree + ",");
         
-        // Send message
+        // Send message using our sender class
         amqp_sender_->send(amqp_msg);
         
-        res.status = 200;
-        res.set_content("{\"status\":\"success\"}", "application/json");
+        res.code = 200;
+        res.write("{\"status\":\"success\"}");
         
     } catch (const std::exception& e) {
         spdlog::error("Error processing DENM request: {}", e.what());
-        res.status = 400;
-        res.set_content("{\"error\":\"" + std::string(e.what()) + "\"}", "application/json");
+        res.code = 400;
+        res.write("{\"error\":\"" + std::string(e.what()) + "\"}");
     }
 }
 
-DenmMessage DenmService::createDenmFromJson(const nlohmann::json& j) {
+DenmMessage DenmService::createDenmFromJson(const crow::json::rvalue& j) {
     DenmMessage denm;
     
-    denm.setStationId(j["stationId"].get<long>());
-    denm.setActionId(j.value("actionId", 1));
+    denm.setStationId(j["stationId"].i());
+    denm.setActionId(j.has("actionId") ? j["actionId"].i() : 1);
     
     time_t timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     denm.setDetectionTime(timestamp);
     denm.setReferenceTime(timestamp);
     
     denm.setEventPosition(
-        j["latitude"].get<double>(),
-        j["longitude"].get<double>(),
-        j.value("altitude", 0.0)
+        j["latitude"].d(),
+        j["longitude"].d(),
+        j.has("altitude") ? j["altitude"].d() : 0.0
     );
     
     denm.setRelevanceDistance(RelevanceDistance_lessThan50m);
     denm.setRelevanceTrafficDirection(RelevanceTrafficDirection_allTrafficDirections);
     denm.setValidityDuration(std::chrono::seconds(600));
-    denm.setStationType(j.value("stationType", 3));
+    denm.setStationType(j.has("stationType") ? j["stationType"].i() : 3);
     
-    denm.setInformationQuality(j.value("informationQuality", 0));
-    denm.setCauseCode(static_cast<CauseCodeType_t>(j.value("causeCode", 1)));
-    denm.setSubCauseCode(j.value("subCauseCode", 0));
+    denm.setInformationQuality(j.has("informationQuality") ? j["informationQuality"].i() : 0);
+    denm.setCauseCode(static_cast<CauseCodeType_t>(j.has("causeCode") ? j["causeCode"].i() : 1));
+    denm.setSubCauseCode(j.has("subCauseCode") ? j["subCauseCode"].i() : 0);
     
     return denm;
 }
@@ -187,17 +203,39 @@ void DenmService::start() {
     
     running_ = true;
     
-    // Start AMQP container
+    // Create AMQP sender first
+    try {
+        spdlog::debug("Creating AMQP sender with URL: {} and address: {}", amqp_url_, amqp_send_address_);
+        amqp_sender_ = std::make_unique<sender>(*amqp_container_, amqp_url_, amqp_send_address_, "denm-sender");
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to create AMQP sender: {}", e.what());
+        running_ = false;
+        throw;
+    }
+    
+    // Start AMQP container in a separate thread
     container_thread_ = std::thread([this]() {
-        container_->run();
+        try {
+            spdlog::debug("Starting AMQP container");
+            amqp_container_->run();
+        } catch (const std::exception& e) {
+            spdlog::error("AMQP container error: {}", e.what());
+        }
     });
     
-    // Create AMQP sender
-    amqp_sender_ = std::make_unique<sender>(*container_, amqp_url_, amqp_address_, "sender");
+    // Configure HTTP server
+    app_.loglevel(crow::LogLevel::Warning);  // Reduce noise from Crow
     
-    // Start HTTP server
+    // Start HTTP server (this will block)
     spdlog::info("Starting HTTP server on {}:{}", http_host_, http_port_);
-    server_->listen(http_host_, http_port_);
+    try {
+        // Use "0.0.0.0" to bind to all available network interfaces
+        app_.bindaddr("0.0.0.0").port(http_port_).run();
+    } catch (const std::exception& e) {
+        spdlog::error("HTTP server error: {}", e.what());
+        stop();  // Clean up AMQP resources
+        throw;
+    }
 }
 
 void DenmService::stop() {
@@ -206,7 +244,7 @@ void DenmService::stop() {
     running_ = false;
     
     // Stop HTTP server
-    server_->stop();
+    app_.stop();
     
     // Close AMQP sender and stop container
     if (amqp_sender_) {
@@ -216,4 +254,4 @@ void DenmService::stop() {
     if (container_thread_.joinable()) {
         container_thread_.join();
     }
-} 
+}
