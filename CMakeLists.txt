@@ -11,6 +11,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Include external dependencies
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/fetchExternalDeps.cmake")
 
+# Add cpp-httplib
+FetchContent_Declare(
+    cpp-httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG v0.14.1
+)
+FetchContent_MakeAvailable(cpp-httplib)
+
+# Add nlohmann_json
+FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.2
+)
+FetchContent_MakeAvailable(json)
+
 # Enable testing
 enable_testing()
 
@@ -71,6 +87,8 @@ target_link_libraries(${PROJECT_NAME}_lib PUBLIC
     Vanetza::security
     Boost::program_options
     spdlog
+    httplib::httplib
+    nlohmann_json::nlohmann_json
 )
 
 # Add main executable
