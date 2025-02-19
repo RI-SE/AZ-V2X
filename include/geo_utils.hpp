@@ -7,4 +7,4 @@
 // Returns an 18-character quadTree string
 std::string calculateQuadTree(double lat, double lon);
 
-#endif // GEO_UTILS_HPP 
+#endif // GEO_UTILS_HPP
