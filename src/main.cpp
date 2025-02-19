@@ -10,6 +10,7 @@
 #include <sstream>
 #include <iomanip>
 #include <boost/program_options.hpp>
+#include "geo_utils.hpp"
 
 DenmMessage createDenmMessage() {
     DenmMessage denm;
@@ -61,7 +62,7 @@ DenmMessage createDenmMessage() {
     spdlog::debug("  Information Quality: {}", denm.getInformationQuality());
 
     spdlog::debug("Location Container:");
-    spdlog::debug("  Event Position: {} {} {}", denm.getEventPosition().latitude, denm.getEventPosition().longitude, denm.getEventPosition().altitude);
+    spdlog::debug("  Event Position: {} {} {}", denm.getEventPosition().latitude, denm.getEventPosition().longitude, denm.getEventPosition().altitude.altitudeValue);
     
 
     return denm;
@@ -107,13 +108,6 @@ int main(int argc, char **argv) {
         // Set certificate directory
         set_cert_directory(vm["cert-dir"].as<std::string>());
         
-        // Create and configure DENM message
-        DenmMessage denm = createDenmMessage();
-
-        // Build the DENM message in a UPER encoded format
-        auto denmMessage = denm.buildDenm();
-        auto encodedDenm = denmMessage.encode();
-        
         // Create a proton container
         proton::container container;
         
@@ -134,7 +128,49 @@ int main(int argc, char **argv) {
         
         // Send the encoded DENM message
         proton::message amqp_msg;
+
+        // First encode the DENM message
+        DenmMessage denm = createDenmMessage();
+
+        // Build the DENM message in a UPER encoded format
+        auto denmMessage = denm.buildDenm();
+        auto encodedDenm = denmMessage.encode();
+
+        // Set message body
         amqp_msg.body(proton::binary(encodedDenm.begin(), encodedDenm.end()));
+
+        // Set AMQP headers
+        amqp_msg.durable(true);
+        amqp_msg.ttl(proton::duration(3600000)); // 1 hour TTL
+        amqp_msg.priority(1);
+
+        // Set application-specific properties using message.properties()
+        amqp_msg.properties().put("publisherId", "NO00001");  // Replace with your publisher ID
+        amqp_msg.properties().put("publicationId", "NO00001:DENM_001");  // Replace with your publication ID
+        amqp_msg.properties().put("originatingCountry", "NO");  // Replace with your country code
+        amqp_msg.properties().put("protocolVersion", "DENM:1.2.2");
+        amqp_msg.properties().put("messageType", "DENM");
+
+        // Get position from DENM message for latitude/longitude
+        const auto& pos = denm.getEventPosition();
+        double lat = pos.latitude / 10000000.0;  // Convert from 1/10 microdegrees to degrees
+        double lon = pos.longitude / 10000000.0;
+
+        amqp_msg.properties().put("latitude", lat);
+        amqp_msg.properties().put("longitude", lon);
+
+        // Calculate quadTree value based on lat/lon
+        std::string quadTree = calculateQuadTree(lat, lon);
+        amqp_msg.properties().put("quadTree", "," + quadTree + ",");
+
+        // Optional properties
+        amqp_msg.properties().put("timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
+
+        // If using sharding (optional)
+        // props.set_property("shardId", 1);
+        // props.set_property("shardCount", 1);
+
         spdlog::info("Sending DENM message to: {}", address);
         send.send(amqp_msg);
 
