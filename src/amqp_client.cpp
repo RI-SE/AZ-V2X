@@ -131,7 +131,6 @@ proton::message receiver::receive() {
     spdlog::debug("Waiting for message...");
               
     while (!closed_ && (!work_queue_ || buffer_.empty())) {
-        spdlog::debug("About to wait on condition...");
         can_receive_.wait(l);
         spdlog::debug("Woke up from wait! closed_: {}, work_queue_: {}, buffer size: {}", 
                      closed_, (work_queue_ != nullptr), buffer_.size());
@@ -141,7 +140,6 @@ proton::message receiver::receive() {
         spdlog::debug("Buffer is empty after wait!");
         throw std::runtime_error("No message available");
     }
-    spdlog::debug("Message received, returning it...");
     proton::message m = std::move(buffer_.front());
     buffer_.pop();
     work_queue_->add([=]() { this->receive_done(); });

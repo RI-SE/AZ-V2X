@@ -3,8 +3,12 @@
 #include <vanetza/units/velocity.hpp>
 #include <iomanip>
 #include <sstream>
+#include <spdlog/spdlog.h>
 
 // Add private helper function declarations to the header first
+
+// Add at the top with other constants
+static const time_t UTC_2004 = 1072915200; // Jan 1, 2004 00:00:00 UTC
 
 DenmMessage::DenmMessage() {
     // Initialize Management Container with default values
@@ -31,7 +35,25 @@ DenmMessage::DenmMessage() {
     location.speedConfidence = 0.95;
 }
 
+// Header setters implementation
+void DenmMessage::setProtocolVersion(int version) {
+    header.protocolVersion = version;
+}
+
+void DenmMessage::setMessageId(long messageId) {
+    header.messageId = messageId;
+}
+
+void DenmMessage::setStationId(long stationId) {
+    header.stationId = stationId;
+}
+
 // Management Container setters implementation
+
+void DenmMessage::setStationType(int type) {
+    management.stationType = type;
+}
+
 void DenmMessage::setActionId(long actionId) {
     management.actionId = actionId;
 }
@@ -113,9 +135,28 @@ void DenmMessage::setEventSpeedConfidence(double speedConfidence) {
 }
 
 // Getters implementation
+
+// Header getters
+int DenmMessage::getProtocolVersion() const {
+    return header.protocolVersion;
+}
+
+long DenmMessage::getMessageId() const {
+    return header.messageId;
+}
+
+long DenmMessage::getStationId() const {
+    return header.stationId;
+}
+
 // Management Container getters
 long DenmMessage::getActionId() const {
     return management.actionId;
+}
+
+
+int DenmMessage::getStationType() const {
+    return management.stationType;
 }
 
 TimestampIts_t DenmMessage::getDetectionTime() const {
@@ -196,9 +237,9 @@ vanetza::asn1::Denm DenmMessage::buildDenm() const {
     vanetza::asn1::Denm denm;
     
     // Set Header
-    denm->header.protocolVersion = 1;  // Current protocol version
+    denm->header.protocolVersion = 2;  // Current protocol version
     denm->header.messageID = ItsPduHeader__messageID_denm;  // DENM message ID
-    denm->header.stationID = management.actionId;  // Use actionId as stationID
+    denm->header.stationID = header.stationId;  // set station ID to 1
     
     // Set Management Container
     auto& mgmt = denm->denm.management;  // Direct access to management container
@@ -206,6 +247,9 @@ vanetza::asn1::Denm DenmMessage::buildDenm() const {
     // ActionID
     mgmt.actionID.originatingStationID = management.actionId;
     mgmt.actionID.sequenceNumber = 0; // Default sequence number
+
+    // Station Type
+    mgmt.stationType = management.stationType;
     
     // Detection and Reference Time
     mgmt.detectionTime = management.detectionTime;
@@ -258,8 +302,7 @@ vanetza::asn1::Denm DenmMessage::buildDenm() const {
     speedValue = std::min(std::max(speedValue, 0L), 16383L);
     loc.eventSpeed->speedValue = speedValue;
     
-    // Speed confidence should be in range (1..100)
-    long speedConfidence = static_cast<long>(location.speedConfidence * 100);
+    long speedConfidence = static_cast<long>(location.speedConfidence);
     speedConfidence = std::min(std::max(speedConfidence, 1L), 100L);
     loc.eventSpeed->speedConfidence = speedConfidence;
     
@@ -270,8 +313,7 @@ vanetza::asn1::Denm DenmMessage::buildDenm() const {
     headingValue = std::min(std::max(headingValue, 0L), 3601L);
     loc.eventPositionHeading->headingValue = headingValue;
     
-    // Heading confidence should be in range (1..100)
-    long headingConfidence = static_cast<long>(location.headingConfidence * 100);
+    long headingConfidence = static_cast<long>(location.headingConfidence);
     headingConfidence = std::min(std::max(headingConfidence, 1L), 100L);
     loc.eventPositionHeading->headingConfidence = headingConfidence;
 
@@ -300,28 +342,46 @@ vanetza::asn1::Denm DenmMessage::buildDenm() const {
 
 // Helper function implementation
 std::string DenmMessage::formatItsTimestamp(const TimestampIts_t& timestamp) {
-    long msec_since_2004;
-    asn_INTEGER2long(&timestamp, &msec_since_2004);
-    
-    const time_t UTC_2004 = 1072915200; // Jan 1, 2004 00:00:00 UTC
+    int64_t msec_since_2004;
+    if (asn_INTEGER2long(&timestamp, &msec_since_2004) != 0) {
+        throw std::runtime_error("Failed to decode ITS timestamp");
+    }
     
     time_t unix_timestamp = (msec_since_2004 / 1000) + UTC_2004;
     
+    // Validate the resulting timestamp
+    if (unix_timestamp < UTC_2004) {
+        throw std::runtime_error("Invalid ITS timestamp (before 2004)");
+    }
+    
     std::stringstream ss;
-    ss << std::put_time(std::gmtime(&unix_timestamp), "%Y-%m-%d %H:%M:%S UTC");
+    auto tm = std::gmtime(&unix_timestamp);
+    if (!tm) {
+        throw std::runtime_error("Failed to convert timestamp to UTC");
+    }
+    ss << std::put_time(tm, "%Y-%m-%d %H:%M:%S UTC");
     return ss.str();
 }
 
 TimestampIts_t DenmMessage::createItsTimestamp(time_t unix_timestamp) {
-    long msec_since_2004 = (unix_timestamp - UTC_2004) * 1000;
+    // Ensure the timestamp is within valid range
+    if (unix_timestamp < UTC_2004) {
+        throw std::runtime_error("Timestamp before ITS epoch (2004-01-01)");
+    }
+    
+    int64_t msec_since_2004 = static_cast<int64_t>(unix_timestamp - UTC_2004) * 1000;
     TimestampIts_t timestamp = {};
-    asn_long2INTEGER(&timestamp, msec_since_2004);
+    if (asn_long2INTEGER(&timestamp, msec_since_2004) != 0) {
+        throw std::runtime_error("Failed to convert timestamp");
+    }
     return timestamp;
 }
 
 void DenmMessage::fromUper(const std::vector<unsigned char>& data) {
     DENM_t* denm = nullptr;
     asn_dec_rval_t rval;
+    
+    spdlog::debug("Starting UPER decoding of {} bytes", data.size());
     
     // Decode UPER data into DENM structure
     rval = uper_decode_complete(
@@ -333,51 +393,129 @@ void DenmMessage::fromUper(const std::vector<unsigned char>& data) {
     );
 
     if (rval.code != RC_OK) {
+        spdlog::error("UPER decoding failed with code: {}", rval.code);
         ASN_STRUCT_FREE(asn_DEF_DENM, denm);
         throw std::runtime_error("Failed to decode UPER data");
     }
 
-    // Check message ID (use ItsPduHeader__messageID_denm instead of messageID_denm)
+    spdlog::debug("UPER decoding successful");
+
+    // Check message ID
     if (denm->header.messageID != ItsPduHeader__messageID_denm) {
+        spdlog::error("Invalid message ID: {} (expected {})", 
+                     denm->header.messageID, ItsPduHeader__messageID_denm);
         ASN_STRUCT_FREE(asn_DEF_DENM, denm);
         throw std::runtime_error("Invalid message ID in decoded DENM");
     }
 
-    // Management Container
-    auto& mgmt = denm->denm.management;
-    management.actionId = mgmt.actionID.originatingStationID;
-    management.detectionTime = mgmt.detectionTime;
-    management.referenceTime = mgmt.referenceTime;
-    management.eventPosition = mgmt.eventPosition;
+    try {
+
+        // Header
+        header.protocolVersion = denm->header.protocolVersion;
+        header.messageId = denm->header.messageID;
+        header.stationId = denm->header.stationID;
+
+        // Management Container
+        auto& mgmt = denm->denm.management;
+        management.actionId = mgmt.actionID.originatingStationID;
+        management.detectionTime = mgmt.detectionTime;
+        management.referenceTime = mgmt.referenceTime;
+        management.eventPosition = mgmt.eventPosition;
+        management.stationType = mgmt.stationType;
+        spdlog::debug("Decoded Management Container successfully");
+        
+        if (mgmt.relevanceDistance) {
+            management.relevanceDistance = *mgmt.relevanceDistance;
+        }
+        if (mgmt.validityDuration) {
+            management.validityDuration = std::chrono::seconds(*mgmt.validityDuration);
+        }
+
+        // Situation Container
+        if (denm->denm.situation) {
+            spdlog::debug("Decoding Situation Container");
+            auto& sit = *denm->denm.situation;
+            situation.informationQuality = sit.informationQuality;
+            situation.causeCode = sit.eventType.causeCode;
+            situation.subCauseCode = sit.eventType.subCauseCode;
+            spdlog::debug("Decoded Situation Container successfully");
+        } else {
+            spdlog::debug("No Situation Container present");
+        }
+
+        // Location Container
+        if (denm->denm.location) {
+            spdlog::debug("Decoding Location Container");
+            auto& loc = *denm->denm.location;
+            if (loc.eventSpeed) {
+                // Speed value is in 0.01 m/s units
+                situation.eventSpeed = static_cast<double>(loc.eventSpeed->speedValue) / 100.0;
+                // Speed confidence is already in percentage (1-100)
+                location.speedConfidence = static_cast<double>(loc.eventSpeed->speedConfidence);
+                spdlog::debug("Decoded speed: {} m/s, confidence: {}", 
+                            situation.eventSpeed, location.speedConfidence);
+            }
+            if (loc.eventPositionHeading) {
+                // Heading value is in 0.1 degree units
+                situation.eventHeading = static_cast<double>(loc.eventPositionHeading->headingValue) / 10.0;
+                // Heading confidence is already in percentage (1-100)
+                location.headingConfidence = static_cast<double>(loc.eventPositionHeading->headingConfidence);
+                spdlog::debug("Decoded heading: {} degrees, confidence: {}", 
+                            situation.eventHeading, location.headingConfidence);
+            }
+            // Position confidence is already in percentage (1-100)
+            location.positionConfidence = location.positionConfidence;
+            
+            spdlog::debug("Decoded Location Container successfully");
+        } else {
+            spdlog::debug("No Location Container present");
+        }
+
+    } catch (const std::exception& e) {
+        spdlog::error("Error during DENM decoding: {}", e.what());
+        ASN_STRUCT_FREE(asn_DEF_DENM, denm);
+        throw;
+    }
+
+    // Create a single log message with all the details
+    std::stringstream logMessage;
+    logMessage << "Received and decoded DENM message:\n";
+
+    // Header
+    logMessage << "Header:\n"
+              << "  Protocol Version: " << header.protocolVersion << "\n"
+              << "  Message ID: " << header.messageId << "\n"
+              << "  Station ID: " << header.stationId << "\n";
     
-    if (mgmt.relevanceDistance) {
-        management.relevanceDistance = *mgmt.relevanceDistance;
-    }
-    if (mgmt.validityDuration) {
-        management.validityDuration = std::chrono::seconds(*mgmt.validityDuration);
-    }
+    // Management Container
+    logMessage << "Management Container:\n"
+              << "  Action ID: " << management.actionId << "\n"
+              << "  Detection Time: " << getDetectionTimeFormatted() << "\n"
+              << "  Reference Time: " << getReferenceTimeFormatted() << "\n"
+              << "  Protocol Version: " << denm->header.protocolVersion << "\n"
+              << "  Event Position: " << management.eventPosition.latitude << ", " << management.eventPosition.longitude << ", " << management.eventPosition.altitude.altitudeValue << "\n"
+              << "  Station Type: " << management.stationType << "\n"
+              << "  Termination: " << (management.termination ? "true" : "false") << "\n"
+              << "  Validity Duration: " << management.validityDuration.count() << "s\n";
 
     // Situation Container
-    if (denm->denm.situation) {
-        auto& sit = *denm->denm.situation;
-        situation.informationQuality = sit.informationQuality;
-        situation.causeCode = sit.eventType.causeCode;
-        situation.subCauseCode = sit.eventType.subCauseCode;
-    }
+    logMessage << "Situation Container:\n"
+              << "  Information Quality: " << situation.informationQuality << "\n"
+              << "  Cause Code: " << situation.causeCode << "\n"
+              << "  Sub Cause Code: " << situation.subCauseCode << "\n"
+              << "  Event Speed: " << situation.eventSpeed << " m/s\n"
+              << "  Event Heading: " << situation.eventHeading << " degrees\n";
 
     // Location Container
-    if (denm->denm.location) {
-        auto& loc = *denm->denm.location;
-        if (loc.eventSpeed) {
-            situation.eventSpeed = static_cast<double>(loc.eventSpeed->speedValue) / 100.0;
-            location.speedConfidence = static_cast<double>(loc.eventSpeed->speedConfidence) / 100.0;
-        }
-        if (loc.eventPositionHeading) {
-            situation.eventHeading = static_cast<double>(loc.eventPositionHeading->headingValue) / 10.0;
-            location.headingConfidence = static_cast<double>(loc.eventPositionHeading->headingConfidence) / 100.0;
-        }
-    }
+    logMessage << "Location Container:\n"
+              << "  Position Confidence: " << location.positionConfidence << "\n"
+              << "  Heading Confidence: " << location.headingConfidence << "\n"
+              << "  Speed Confidence: " << location.speedConfidence;
+
+    // Log everything in a single call
+    spdlog::debug(logMessage.str());
 
     // Free the decoded structure
     ASN_STRUCT_FREE(asn_DEF_DENM, denm);
-} 
+    spdlog::debug("DENM decoding completed successfully");
+}

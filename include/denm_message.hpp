@@ -12,8 +12,15 @@ class DenmMessage {
 public:
     DenmMessage();
 
+
+    // Header setters
+    void setProtocolVersion(int version);
+    void setMessageId(long messageId);
+    void setStationId(long stationId);
+
     // Management Container setters
     void setActionId(long actionId);
+    void setStationType(int type);
     void setDetectionTime(time_t unix_timestamp);
     void setDetectionTime();
     void setReferenceTime(time_t unix_timestamp);
@@ -37,6 +44,11 @@ public:
     void setEventHeadingConfidence(double headingConfidence);
     void setEventSpeedConfidence(double speedConfidence);
 
+    // Header getters
+    int getProtocolVersion() const;
+    long getMessageId() const;
+    long getStationId() const;
+
     // Management Container getters
     long getActionId() const;
     TimestampIts_t getDetectionTime() const;
@@ -49,6 +61,7 @@ public:
     RelevanceTrafficDirection_t getRelevanceTrafficDirection() const;
     std::chrono::seconds getValidityDuration() const;
     std::chrono::milliseconds getTransmissionInterval() const;
+    int getStationType() const;
 
     // Situation Container getters
     int getInformationQuality() const;
@@ -74,11 +87,19 @@ private:
     static TimestampIts_t createItsTimestamp(time_t unix_timestamp);
     static const time_t UTC_2004 = 1072915200; // Jan 1, 2004 00:00:00 UTC
 
+    struct Header {
+        long protocolVersion;
+        long messageId;
+        long stationId;
+    } header;
+
     struct ManagementContainer {
+        int protocolVersion;
         long actionId;
         TimestampIts_t detectionTime;
         TimestampIts_t referenceTime;
         bool termination;
+        int stationType;
         ReferencePosition_t eventPosition;
         RelevanceDistance_t relevanceDistance;
         RelevanceTrafficDirection_t relevanceTrafficDirection;
@@ -99,7 +120,7 @@ private:
         double headingConfidence;
         double speedConfidence;
     } location;
-
+    
 };
 
 #endif // DENM_MESSAGE_HPP 

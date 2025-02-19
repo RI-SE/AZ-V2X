@@ -14,29 +14,43 @@
 DenmMessage createDenmMessage() {
     DenmMessage denm;
     
-    // Set management container values
-    denm.setActionId(12345);
-    denm.setDetectionTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-    denm.setReferenceTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-    denm.setEventPosition(52.5200, 13.4050, 30.0); // Example: Berlin coordinates
-    denm.setRelevanceDistance(RelevanceDistance_lessThan100m);
-    denm.setValidityDuration(std::chrono::seconds(300)); // 5 minutes
+    // Set header values
+    denm.setStationId(1234567);
 
+    denm.setActionId(20);
+    
+    time_t timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    denm.setDetectionTime(timestamp);
+    denm.setReferenceTime(timestamp);
+    
+    // Set event position (convert from microdegrees to degrees)
+    double latitude = 57.779017;  
+    double longitude = 12.774981;
+    double altitude = 190.0;
+    denm.setEventPosition(latitude, longitude, altitude);
+    
+    // Set awareness (relevance) distance
+    denm.setRelevanceDistance(RelevanceDistance_lessThan50m);
+    
+    // Set awareness (relevance) traffic direction
+    denm.setRelevanceTrafficDirection(RelevanceTrafficDirection_allTrafficDirections);
+    
+    // Set validity duration (600 seconds)
+    denm.setValidityDuration(std::chrono::seconds(600));
+    
+    // Set station type (3 for moped/e-scooter)
+    denm.setStationType(3);
+    
     // Set situation container values
-    denm.setInformationQuality(3);
-    denm.setCauseCode(CauseCodeType_roadworks);
-    denm.setSubCauseCode(1);
-    denm.setEventSpeed(13.89);
-    denm.setEventHeading(3601);
-
-    // Set location container values
-    denm.setEventPositionConfidence(95);
-    denm.setEventHeadingConfidence(98);
-
+    denm.setInformationQuality(0);  // Unavailable
+    denm.setCauseCode(CauseCodeType_accident);  // 1 for accident
+    denm.setSubCauseCode(0);  // Not specified
+    
     // Log DENM message details
     spdlog::debug("Created DENM message with following details:");
     spdlog::debug("Management Container:");
     spdlog::debug("  Action ID: {}", denm.getActionId());
+    spdlog::debug("  Protocol Version: {}", denm.getProtocolVersion());
     spdlog::debug("  Detection Time: {}", denm.getDetectionTimeFormatted());
     spdlog::debug("  Reference Time: {}", denm.getReferenceTimeFormatted());
     spdlog::debug("  Validity Duration: {}s", denm.getValidityDuration().count());
@@ -45,13 +59,10 @@ DenmMessage createDenmMessage() {
     spdlog::debug("  Cause Code: {}", denm.getCauseCode());
     spdlog::debug("  Sub Cause Code: {}", denm.getSubCauseCode());
     spdlog::debug("  Information Quality: {}", denm.getInformationQuality());
-    spdlog::debug("  Event Speed: {:.2f} m/s", denm.getEventSpeed());
-    spdlog::debug("  Event Heading: {:.2f} degrees", denm.getEventHeading());
 
     spdlog::debug("Location Container:");
-    spdlog::debug("  Position Confidence: {:.2f}", denm.getEventPositionConfidence());
-    spdlog::debug("  Heading Confidence: {:.2f}", denm.getEventHeadingConfidence());
-    spdlog::debug("  Speed Confidence: {:.2f}", denm.getEventSpeedConfidence());
+    spdlog::debug("  Event Position: {} {} {}", denm.getEventPosition().latitude, denm.getEventPosition().longitude, denm.getEventPosition().altitude);
+    
 
     return denm;
 }
@@ -142,19 +153,7 @@ int main(int argc, char **argv) {
                 // Decode received DENM message
                 auto receivedData = proton::get<proton::binary>(received.body());
                 DenmMessage receivedDenm;
-                receivedDenm.fromUper(std::vector<unsigned char>(receivedData.data(), receivedData.data() + receivedData.size()));
-                
-                spdlog::info("Received and decoded DENM message:");
-                spdlog::info("Management Container:");
-                spdlog::info("  Action ID: {}", receivedDenm.getActionId());
-                spdlog::info("  Detection Time: {}", receivedDenm.getDetectionTimeFormatted());
-                spdlog::info("  Reference Time: {}", receivedDenm.getReferenceTimeFormatted());
-                
-                spdlog::info("Situation Container:");
-                spdlog::info("  Cause Code: {}", receivedDenm.getCauseCode());
-                spdlog::info("  Sub Cause Code: {}", receivedDenm.getSubCauseCode());
-                spdlog::info("  Event Speed: {:.2f} m/s", receivedDenm.getEventSpeed());
-                
+                receivedDenm.fromUper(std::vector<unsigned char>(receivedData.data(), receivedData.data() + receivedData.size()));                
                 received_response = true;
             } catch (const std::exception& e) {
                 auto now = std::chrono::steady_clock::now();
