@@ -160,11 +160,10 @@ void DenmService::handleDenmPost(const crow::request& req, crow::response& res) 
 		proton::message amqp_msg;
 
 		// Build and encode DENM
-		auto denmMessage = denm.buildDenm();
-		auto encodedDenm = denmMessage.encode();
+		auto denmMessage = denm.getUperEncoded();
 
 		// Set message body
-		amqp_msg.body(proton::binary(encodedDenm.begin(), encodedDenm.end()));
+		amqp_msg.body(proton::binary(denmMessage.begin(), denmMessage.end()));
 
 		// Set AMQP headers
 		amqp_msg.durable(true);
@@ -318,20 +317,27 @@ void DenmService::broadcastMessage(const std::string& message) {
 void DenmService::runReceiverLoop() {
 	while (running_) {
 		try {
-			// Remove the duration parameter since receive() doesn't accept it
 			proton::message m = amqp_receiver_->receive();
 			if (!running_)
-				break; // Check if we should exit
+				break;
 
 			// Process only binary messages (i.e. UPER encoded DENM)
 			if (m.body().type() == proton::BINARY) {
 				auto data = proton::get<proton::binary>(m.body());
+
+				// Create a new DenmMessage instance for each received message
+				// instead of potentially reusing one
 				DenmMessage denm;
-				denm.fromUper(data);
-				auto j				 = denm.toJson();
-				std::string json_str = j.dump();
-				spdlog::info("Broadcasting message over WebSocket: {}", json_str);
-				broadcastMessage(json_str);
+				try {
+					denm.fromUper(data);
+					auto j				 = denm.toJson();
+					std::string json_str = j.dump();
+					spdlog::info("Broadcasting message over WebSocket: {}", json_str);
+					broadcastMessage(json_str);
+				} catch (const std::exception& e) {
+					spdlog::error("Error processing DENM message: {}", e.what());
+					continue;
+				}
 			} else {
 				spdlog::warn("Received AMQP message is not binary.");
 			}
@@ -341,7 +347,10 @@ void DenmService::runReceiverLoop() {
 		} catch (const std::exception& e) {
 			spdlog::error("Error in AMQP receiver loop: {}", e.what());
 			if (!running_)
-				break; // Exit if we're shutting down
+				break;
+
+			// Add a small delay before retrying to prevent tight error loops
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 	}
 }
