@@ -60,8 +60,13 @@ int main(int argc, char** argv) {
 		set_cert_directory(vm["cert-dir"].as<std::string>());
 
 		// Setup signal handling
-		std::signal(SIGINT, signal_handler);
-		std::signal(SIGTERM, signal_handler);
+		std::signal(SIGINT, [](int) {
+			spdlog::info("Received SIGINT, shutting down...");
+			if (service) {
+				service->stop();
+			}
+			exit(0);  // Ensure we exit if stop() hangs
+		});
 
 		// Create and start service
 		service = std::make_unique<DenmService>(vm["amqp-url"].as<std::string>(),
@@ -76,20 +81,8 @@ int main(int argc, char** argv) {
 		spdlog::info("Starting DENM service...");
 		service->start();
 
-		// Keep main thread alive until signal is received
-		std::condition_variable cv;
-		std::mutex mtx;
-		std::unique_lock<std::mutex> lock(mtx);
-
-		auto old_handler = signal(SIGINT, [](int) {
-			if (service) {
-				service->stop();
-			}
-			exit(0); // Force exit if service->stop() doesn't complete
-		});
-
-		// Wait indefinitely
-		cv.wait(lock);
+		// Keep main thread alive with a simple pause
+		pause();  // This will block until a signal is received
 
 		return 0;
 	} catch (const std::exception& e) {
