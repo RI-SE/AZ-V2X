@@ -21,17 +21,48 @@ int main(int argc, char** argv) {
 
 		// Declare the supported options
 		po::options_description desc("Allowed options");
-		desc.add_options()("help,h", "produce help message")(
-		  "cert-dir,c", po::value<std::string>()->default_value("ssl-certs/"), "directory containing SSL certificates")(
-		  "log-level,l", po::value<std::string>()->default_value("info"), "logging level (debug, info, warn, error)")(
-		  "amqp-url", po::value<std::string>()->default_value("amqp://localhost:5672"), "AMQP broker URL")(
-		  "amqp-send", po::value<std::string>()->default_value("examples"), "AMQP send address")(
-		  "amqp-receive", po::value<std::string>()->default_value("examples"), "AMQP receive address")(
-		  "http-host", po::value<std::string>()->default_value("localhost"), "HTTP server host")(
-		  "http-port", po::value<int>()->default_value(8080), "HTTP server port")(
-		  "ws-port", po::value<int>()->default_value(8081), "WebSocket server port")(
-		  "receiver", po::value<bool>()->default_value(true), "Enable receiver mode")(
-		  "sender", po::value<bool>()->default_value(true), "Enable sender mode");
+		desc.add_options()
+			("help,h", "produce help message")
+			("cert-dir,c", 
+			 po::value<std::string>()->default_value(
+				 getenv("CERT_DIR") ? getenv("CERT_DIR") : "ssl-certs/"), 
+			 "directory containing SSL certificates")
+			("log-level,l", 
+			 po::value<std::string>()->default_value(
+				 getenv("LOG_LEVEL") ? getenv("LOG_LEVEL") : "info"), 
+			 "logging level (debug, info, warn, error)")
+			("amqp-url", 
+			 po::value<std::string>()->default_value(
+				 getenv("AMQP_URL") ? getenv("AMQP_URL") : "amqp://localhost:5672"), 
+			 "AMQP broker URL")
+			("amqp-send", 
+			 po::value<std::string>()->default_value(
+				 getenv("AMQP_SEND") ? getenv("AMQP_SEND") : "examples"), 
+			 "AMQP send address")
+			("amqp-receive", 
+			 po::value<std::string>()->default_value(
+				 getenv("AMQP_RECEIVE") ? getenv("AMQP_RECEIVE") : "examples"), 
+			 "AMQP receive address")
+			("http-host", 
+			 po::value<std::string>()->default_value(
+				 getenv("HTTP_HOST") ? getenv("HTTP_HOST") : "0.0.0.0"), 
+			 "HTTP server host")
+			("http-port", 
+			 po::value<int>()->default_value(
+				 getenv("HTTP_PORT") ? std::stoi(getenv("HTTP_PORT")) : 8080), 
+			 "HTTP server port")
+			("ws-port", 
+			 po::value<int>()->default_value(
+				 getenv("WS_PORT") ? std::stoi(getenv("WS_PORT")) : 8081), 
+			 "WebSocket server port")
+			("receiver", 
+			 po::value<bool>()->default_value(
+				 getenv("RECEIVER") ? std::string(getenv("RECEIVER")) == "true" : true), 
+			 "Enable receiver mode")
+			("sender", 
+			 po::value<bool>()->default_value(
+				 getenv("SENDER") ? std::string(getenv("SENDER")) == "true" : true), 
+			 "Enable sender mode");
 
 		po::variables_map vm;
 		po::store(po::parse_command_line(argc, argv, desc), vm);

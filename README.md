@@ -12,7 +12,7 @@ This project is setup to use a dev container. To use the dev container you will 
 
 # Build and Run
 
-### Build the application
+### Build native application
 ```bash
 $ mkdir build && cd build
 $ cmake .. && cmake --build .
@@ -24,14 +24,34 @@ $ ./AZ-V2X --help  # Show available options
 $ ./AZ-V2X --amqp-url "amqp://localhost:5672" --amqp-address "examples" --http-port 8080
 ```
 
-Available options:
-- `--help, -h`: Show help message
-- `--cert-dir, -c`: Directory containing SSL certificates (default: "ssl-certs/")
-- `--log-level, -l`: Logging level (debug, info, warn, error) (default: "info")
-- `--amqp-url`: AMQP broker URL (default: "amqp://localhost:5672")
-- `--amqp-address`: AMQP address (default: "examples")
-- `--http-host`: HTTP server host (default: "localhost")
-- `--http-port`: HTTP server port (default: 8080)
+### Build docker image
+```bash
+$ docker build -t az-v2x -f .devcontainer/Dockerfile .
+```
+
+### Run docker image
+```bash
+$ docker run --add-host=host.docker.internal:host-gateway -e AMQP_URL=amqp://host.docker.internal:5672 az-v2x 
+# Networking flags are needed if running a docker amqp broker along side the service
+```
+
+Available options (can be set via command line flags or environment variables):
+
+| Option | Environment Variable | Description | Default |
+|--------|---------------------|-------------|---------|
+| `--help, -h` | - | Show help message | - |
+| `--cert-dir, -c` | `CERT_DIR` | Directory containing SSL certificates | "ssl-certs/" |
+| `--log-level, -l` | `LOG_LEVEL` | Logging level (debug, info, warn, error) | "info" |
+| `--amqp-url` | `AMQP_URL` | AMQP broker URL | "amqp://localhost:5672" |
+| `--amqp-send` | `AMQP_SEND` | AMQP send address | "examples" |
+| `--amqp-receive` | `AMQP_RECEIVE` | AMQP receive address | "examples" |
+| `--http-host` | `HTTP_HOST` | HTTP server host | "0.0.0.0" |
+| `--http-port` | `HTTP_PORT` | HTTP server port | 8080 |
+| `--ws-port` | `WS_PORT` | WebSocket server port | 8081 |
+| `--receiver` | `RECEIVER` | Enable receiver mode | true |
+| `--sender` | `SENDER` | Enable sender mode | true |
+
+Environment variables can be used when running the service, for example:
 
 ## REST API
 
@@ -72,7 +92,7 @@ Optional fields:
 
 ## Configure a local AMQP broker for development
 
-You can use Apache ActiveMQ Artemis as a local AMQP broker for development:
+You can use Apache ActiveMQ Artemis as a local AMQP broker for development. This can be started inside the dev container. 
 
 ### Create a directory to save the broker configuration locally
 ```bash
@@ -119,3 +139,5 @@ docker exec -it artemisbroker /var/lib/artemis-instance/bin/artemis shell --user
 user add
 # follow the prompts to add the user
 ```
+
+
