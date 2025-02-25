@@ -5,6 +5,7 @@
 #include <csignal>
 #include <mutex>
 #include <spdlog/spdlog.h>
+#include "interchange_service.hpp"
 
 std::unique_ptr<DenmService> service;
 
@@ -99,17 +100,21 @@ int main(int argc, char** argv) {
 			exit(0);  // Ensure we exit if stop() hangs
 		});
 
-		// Create and start service
-		service = std::make_unique<DenmService>(vm["amqp-url"].as<std::string>(),
-												vm["amqp-send"].as<std::string>(),
-												vm["amqp-receive"].as<std::string>(),
-												vm["http-host"].as<std::string>(),
-												vm["http-port"].as<int>(),
-												vm["ws-port"].as<int>(),
-												vm["receiver"].as<bool>(),
-												vm["sender"].as<bool>());
+		// Create services
+		auto interchange = std::make_unique<InterchangeService>(
+			vm["amqp-url"].as<std::string>(),
+			vm["amqp-send"].as<std::string>(),
+			vm["amqp-receive"].as<std::string>()
+		);
 
-		spdlog::info("Starting DENM service...");
+		service = std::make_unique<DenmService>(
+			vm["http-host"].as<std::string>(),
+			vm["http-port"].as<int>(),
+			vm["ws-port"].as<int>()
+		);
+
+		// Start services
+		interchange->start();
 		service->start();
 
 		// Keep main thread alive with a simple pause

@@ -19,6 +19,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(crow)
 
+# Add nlohmann/json
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+)
+FetchContent_MakeAvailable(json)
+
 # Enable testing
 enable_testing()
 
@@ -80,6 +87,7 @@ target_link_libraries(${PROJECT_NAME}_lib PUBLIC
     Boost::program_options
     spdlog
     Crow::Crow
+    nlohmann_json::nlohmann_json
 )
 
 # Add main executable

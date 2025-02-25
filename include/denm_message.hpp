@@ -8,7 +8,7 @@
 #include <vanetza/asn1/denm.hpp>
 #include <vanetza/btp/data_request.hpp>
 #include <vector>
-
+#include <nlohmann/json.hpp>
 class DenmMessage {
 public:
 	DenmMessage();
@@ -19,7 +19,8 @@ public:
 	// Core functionality
 	std::vector<unsigned char> getUperEncoded() const;
 	void fromUper(const std::vector<unsigned char>& data);
-	crow::json::wvalue toJson() const;
+	nlohmann::json toJson() const;
+	static DenmMessage fromJson(const nlohmann::json& j);
 
 	// Direct access to DENM structure
 	std::unique_ptr<DENM_t> denm = std::make_unique<DENM_t>();
