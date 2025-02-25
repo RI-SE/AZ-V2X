@@ -63,15 +63,25 @@ The service provides a REST API for sending DENM messages. The API documentation
 curl -X POST http://localhost:8080/denm \
   -H "Content-Type: application/json" \
   -d '{
-    "stationId": 1234567,
+  "header": {
+    "protocolVersion": 2,
+    "messageId": 1,
+    "stationId": 1234567
+  },
+  "management": {
     "actionId": 20,
-    "latitude": 57.779017,
-    "longitude": 12.774981,
-    "altitude": 190.0,
+    "stationType": 5,
+    "eventPosition": {
+      "latitude": 57.779017,
+      "longitude": 12.774981,
+      "altitude": 190.0
+    }
+  },
+  "situation": {
+    "informationQuality": 1,
     "causeCode": 1,
-    "subCauseCode": 0,
-    "publisherId": "NO00001",
-    "originatingCountry": "NO"
+    "subCauseCode": 0
+  }
   }'
 ```
 

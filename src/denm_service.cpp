@@ -109,7 +109,7 @@ void DenmService::setupRoutes() {
 	});
 
 	// New WebSocket endpoint for relaying AMQP messages to the Vue.js client
-	CROW_ROUTE(app_, "/ws")
+	CROW_ROUTE(app_, "/denm")
 	  .websocket()
 	  .onopen([this](crow::websocket::connection& conn) {
 		  {
