@@ -1,20 +1,55 @@
 #include "interchange_service.hpp"
 #include "denm_message.hpp"
+#include <proton/connection_options.hpp>
 #include <spdlog/spdlog.h>
 
 InterchangeService::InterchangeService(const std::string& amqp_url,
                                      const std::string& amqp_send_address,
-                                     const std::string& amqp_receive_address) :
+                                     const std::string& amqp_receive_address,
+                                     const std::string& cert_dir) :
     amqp_url_(amqp_url),
     amqp_send_address_(amqp_send_address),
     amqp_receive_address_(amqp_receive_address),
+    cert_dir_(cert_dir),
     amqp_container_(std::make_unique<proton::container>()) {
+    
+    // Configure container settings
+    setupContainerOptions();
     
     // Subscribe to outgoing DENM events
     EventBus::getInstance().subscribe("denm.outgoing", 
         [this](const nlohmann::json& denm) {
             this->handleOutgoingDenm(denm);
         });
+}
+
+void InterchangeService::setupContainerOptions() {
+    proton::connection_options conn_opts;
+    
+    if (!cert_dir_.empty()) {
+        try {
+            ssl_certificate client_cert = platform_certificate("client", cert_dir_);
+            std::string server_CA = platform_CA("ca");
+            
+            proton::ssl_client_options ssl_cli(client_cert, server_CA, proton::ssl::VERIFY_PEER);
+            conn_opts.ssl_client_options(ssl_cli);
+            spdlog::info("SSL enabled for AMQP connection");
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to configure SSL: {}", e.what());
+            throw;  // Re-throw as this was explicitly requested
+        }
+    } else {
+        spdlog::info("SSL disabled for AMQP connection");
+    }
+
+    // Setup basic connection options
+    conn_opts.user("guest")
+            .password("guest")
+            .sasl_enabled(true)
+            .sasl_allowed_mechs("PLAIN ANONYMOUS")
+            .container_id("az-v2x-service");
+
+    amqp_container_->client_connection_options(conn_opts);
 }
 
 void InterchangeService::start() {

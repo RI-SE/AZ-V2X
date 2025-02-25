@@ -40,7 +40,6 @@ private:
     
     proton::work_queue* work_queue();
     void do_send(const proton::message& m);
-    void setup_ssl(proton::container& cont);
 };
 
 // A thread-safe receiving connection
@@ -65,7 +64,6 @@ private:
     void on_receiver_open(proton::receiver& r) override;
     void on_message(proton::delivery& d, proton::message& m) override;
     void on_error(const proton::error_condition& e) override;
-    void setup_ssl(proton::container& cont);
     
     void receive_done();
 };

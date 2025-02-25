@@ -27,17 +27,11 @@ sender::sender(proton::container& cont, const std::string& url, const std::strin
   credit_(0),
   address_(address) {
 	proton::sender_options so;
-	so.target(proton::target_options().address(address)).source(proton::source_options().address(name + "-source"));
+	so.target(proton::target_options().address(address))
+	  .source(proton::source_options().address(name + "-source"))
+	  .handler(*this);
 
-	proton::connection_options co;
-	co.user("guest")
-	  .password("guest")
-	  .handler(*this)
-	  .sasl_enabled(true)
-	  .sasl_allowed_mechs("PLAIN ANONYMOUS")
-	  .container_id(name); // Set unique container ID
-
-	cont.open_sender(url, so, co);
+	cont.open_sender(url, so);
 }
 
 void sender::send(const proton::message& m) {
@@ -59,15 +53,6 @@ proton::work_queue* sender::work_queue() {
 	while (!work_queue_)
 		sender_ready_.wait(l);
 	return work_queue_;
-}
-
-void sender::setup_ssl(proton::container& cont) {
-	ssl_certificate client_cert = platform_certificate("client", "");
-	std::string server_CA		= platform_CA("ca");
-	proton::ssl_client_options ssl_cli(client_cert, server_CA, proton::ssl::VERIFY_PEER);
-	proton::connection_options client_opts;
-	client_opts.ssl_client_options(ssl_cli).sasl_allowed_mechs("EXTERNAL");
-	cont.client_connection_options(client_opts);
 }
 
 void sender::on_sender_open(proton::sender& s) {
@@ -114,26 +99,10 @@ receiver::receiver(proton::container& cont,
 	ro.credit_window(10)
 	  .auto_accept(true)
 	  .source(proton::source_options().address(address))
-	  .target(proton::target_options().address(name + "-target"));
+	  .target(proton::target_options().address(name + "-target"))
+	  .handler(*this);
 
-	proton::connection_options co;
-	co.user("guest")
-	  .password("guest")
-	  .handler(*this)
-	  .sasl_enabled(true)
-	  .sasl_allowed_mechs("PLAIN ANONYMOUS")
-	  .container_id(name); // Set unique container ID
-
-	cont.open_receiver(url, ro, co);
-}
-
-void receiver::setup_ssl(proton::container& cont) {
-	ssl_certificate client_cert = platform_certificate("client", "");
-	std::string server_CA		= platform_CA("ca");
-	proton::ssl_client_options ssl_cli(client_cert, server_CA, proton::ssl::VERIFY_PEER);
-	proton::connection_options client_opts;
-	client_opts.ssl_client_options(ssl_cli).sasl_allowed_mechs("EXTERNAL");
-	cont.client_connection_options(client_opts);
+	cont.open_receiver(url, ro);
 }
 
 proton::message receiver::receive() {

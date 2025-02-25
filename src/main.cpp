@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 			("help,h", "produce help message")
 			("cert-dir,c", 
 			 po::value<std::string>()->default_value(
-				 getenv("CERT_DIR") ? getenv("CERT_DIR") : "ssl-certs/"), 
+				 getenv("CERT_DIR") ? getenv("CERT_DIR") : ""), 
 			 "directory containing SSL certificates")
 			("log-level,l", 
 			 po::value<std::string>()->default_value(
@@ -104,7 +104,8 @@ int main(int argc, char** argv) {
 		auto interchange = std::make_unique<InterchangeService>(
 			vm["amqp-url"].as<std::string>(),
 			vm["amqp-send"].as<std::string>(),
-			vm["amqp-receive"].as<std::string>()
+			vm["amqp-receive"].as<std::string>(),
+			vm["cert-dir"].as<std::string>()
 		);
 
 		service = std::make_unique<DenmService>(
