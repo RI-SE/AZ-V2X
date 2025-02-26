@@ -4,14 +4,6 @@
 
 static std::string cert_directory;
 
-bool using_OpenSSL() {
-    // Current defaults.
-#if defined(_WIN32)
-    return false;
-#else
-    return true;
-#endif
-}
 
 void set_cert_directory(const std::string& dir) {
     cert_directory = dir;
@@ -26,13 +18,8 @@ std::string get_cert_directory() {
 
 ssl_certificate platform_certificate(const std::string &base_name, const std::string &passwd) {
     std::string cert_path, key_path;
-    if (using_OpenSSL()) {
-        cert_path = cert_directory + base_name + ".crt";
-        key_path = cert_directory + base_name + ".key";
-    } else {
-        cert_path = cert_directory + base_name + ".pem";
-        key_path = ""; // No key file needed for non-OpenSSL
-    }
+    cert_path = cert_directory + base_name + ".crt";
+    key_path = cert_directory + base_name + ".key";
 
     // Check if the certificate file exists
     if (!std::filesystem::exists(cert_path)) {
@@ -40,7 +27,7 @@ ssl_certificate platform_certificate(const std::string &base_name, const std::st
     }
 
     // Check if the key file exists (only for OpenSSL)
-    if (using_OpenSSL() && !std::filesystem::exists(key_path)) {
+    if (!std::filesystem::exists(key_path)) {
         throw std::runtime_error("Key file not found: " + key_path);
     }
 
@@ -48,11 +35,7 @@ ssl_certificate platform_certificate(const std::string &base_name, const std::st
 }
 
 std::string platform_CA(const std::string &base_name) {
-    if (using_OpenSSL()) {
-        return cert_directory + base_name + ".pem";
-    } else {
-        return cert_directory + base_name + "-certificate.p12";
-    }
+    return cert_directory + base_name + ".pem";
 }
 
 std::string find_CN(const std::string &subject) {
