@@ -16,6 +16,8 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     build-essential \
     cmake \
     git \
+    iputils-ping \
+    dnsutils \
     libboost-date-time-dev \
     libboost-program-options-dev \
     libboost-system-dev \
