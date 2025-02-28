@@ -62,9 +62,9 @@ void sender::on_connection_open(proton::connection& c) {
 
 void sender::on_sender_open(proton::sender& s) {
 	std::lock_guard<std::mutex> l(lock_);
-	sender_ = s;
+	sender_		= s;
 	work_queue_ = &s.work_queue();
-	
+
 	spdlog::debug("Sender opened successfully");
 	spdlog::debug("  Remote container: {}", s.connection().container_id());
 	spdlog::debug("  Target address: {}", s.target().address());
@@ -108,10 +108,8 @@ receiver::receiver(proton::container& cont,
 	spdlog::info("Creating receiver with URL: {} and address: {}", url, address);
 
 	proton::receiver_options ro;
-	ro.source(proton::source_options()
-		.address(address)
-		.dynamic(false))
-	  .credit_window(1000)  // Match Java client's credit window
+	ro.source(proton::source_options().address(address).dynamic(false))
+	  .credit_window(1000) // Match Java client's credit window
 	  .auto_accept(true)
 	  .handler(*this);
 

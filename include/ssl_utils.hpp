@@ -6,10 +6,10 @@
 
 using proton::ssl_certificate;
 
-std::string platform_CA(const std::string &base_name);
-ssl_certificate platform_certificate(const std::string &base_name, const std::string &passwd);
-std::string find_CN(const std::string &subject);
+std::string platform_CA(const std::string& base_name);
+ssl_certificate platform_certificate(const std::string& base_name, const std::string& passwd);
+std::string find_CN(const std::string& subject);
 void set_cert_directory(const std::string& dir);
 std::string get_cert_directory();
 
-#endif // SSL_UTILS_HPP 
+#endif // SSL_UTILS_HPP

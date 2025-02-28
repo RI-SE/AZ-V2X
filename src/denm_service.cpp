@@ -1,21 +1,17 @@
 #include "denm_service.hpp"
-#include "geo_utils.hpp"
 #include "event_bus.hpp"
+#include "geo_utils.hpp"
 #include <spdlog/spdlog.h>
 
-DenmService::DenmService(const std::string& http_host,
-						 int http_port,
-						 int ws_port) :
+DenmService::DenmService(const std::string& http_host, int http_port, int ws_port) :
   http_host_(http_host),
   http_port_(http_port),
   ws_port_(ws_port),
   running_(false) {
 	// Setup HTTP routes (including WebSocket)
 	setupRoutes();
-	EventBus::getInstance().subscribe("denm.incoming", 
-	[this](const nlohmann::json& denm) {
-		this->broadcastMessage(denm.dump());
-	});
+	EventBus::getInstance().subscribe("denm.incoming",
+									  [this](const nlohmann::json& denm) { this->broadcastMessage(denm.dump()); });
 }
 
 DenmService::~DenmService() {
@@ -132,31 +128,31 @@ void DenmService::setupRoutes() {
 }
 
 void DenmService::handleDenmPost(const crow::request& req, crow::response& res) {
-    try {
-        // Parse the JSON request
-        auto j = crow::json::load(req.body);
-        if (!j) {
-            res.code = 400;
-            res.write("{\"error\":\"Invalid JSON\"}");
-            return;
-        }
+	try {
+		// Parse the JSON request
+		auto j = crow::json::load(req.body);
+		if (!j) {
+			res.code = 400;
+			res.write("{\"error\":\"Invalid JSON\"}");
+			return;
+		}
 
-        // Convert crow::json to nlohmann::json for EventBus
-        nlohmann::json denm_json = nlohmann::json::parse(req.body);
-        
-        // Debug log the parsed JSON
-        spdlog::debug("Parsed DENM JSON: {}", denm_json.dump(2));
-        
-        // Publish the DENM message to the event bus
-        EventBus::getInstance().publish("denm.outgoing", denm_json);
-        
-        res.code = 200;
-        res.write("{\"status\":\"success\"}");
-    } catch (const std::exception& e) {
-        spdlog::error("Error processing DENM request: {}", e.what());
-        res.code = 400;
-        res.write("{\"error\":\"" + std::string(e.what()) + "\"}");
-    }
+		// Convert crow::json to nlohmann::json for EventBus
+		nlohmann::json denm_json = nlohmann::json::parse(req.body);
+
+		// Debug log the parsed JSON
+		spdlog::debug("Parsed DENM JSON: {}", denm_json.dump(2));
+
+		// Publish the DENM message to the event bus
+		EventBus::getInstance().publish("denm.outgoing", denm_json);
+
+		res.code = 200;
+		res.write("{\"status\":\"success\"}");
+	} catch (const std::exception& e) {
+		spdlog::error("Error processing DENM request: {}", e.what());
+		res.code = 400;
+		res.write("{\"error\":\"" + std::string(e.what()) + "\"}");
+	}
 }
 
 void DenmService::start() {

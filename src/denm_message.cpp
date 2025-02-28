@@ -166,53 +166,57 @@ nlohmann::json DenmMessage::toJson() const {
 }
 
 DenmMessage DenmMessage::fromJson(const nlohmann::json& j) {
-    DenmMessage msg;
-    
-    // Header
-    msg.denm->header.protocolVersion = j["header"]["protocolVersion"];
-    msg.denm->header.messageID = j["header"]["messageId"];
-    msg.denm->header.stationID = j["header"]["stationId"];
-    
-    // Management Container
-    auto& mgmt = msg.denm->denm.management;
-    mgmt.actionID.originatingStationID = j["management"]["actionId"];
-    mgmt.detectionTime = createItsTimestamp(std::time(nullptr));  // Current time
-    mgmt.referenceTime = createItsTimestamp(std::time(nullptr));  // Current time
-    mgmt.stationType = j["management"]["stationType"];
-    
-    // Event Position
-    mgmt.eventPosition.latitude = static_cast<int32_t>(j["management"]["eventPosition"]["latitude"].get<double>() * 10000000.0);
-    mgmt.eventPosition.longitude = static_cast<int32_t>(j["management"]["eventPosition"]["longitude"].get<double>() * 10000000.0);
-    mgmt.eventPosition.altitude.altitudeValue = static_cast<int32_t>(j["management"]["eventPosition"]["altitude"].get<double>() * 100.0);
-    
-    // Optional Situation Container
-    if (j.contains("situation")) {
-        msg.denm->denm.situation = vanetza::asn1::allocate<SituationContainer_t>();
-        auto& sit = *msg.denm->denm.situation;
-        sit.informationQuality = j["situation"]["informationQuality"];
-        sit.eventType.causeCode = j["situation"]["causeCode"];
-        sit.eventType.subCauseCode = j["situation"]["subCauseCode"];
-    }
-    
-    // Optional Location Container
-    if (j.contains("location")) {
-        msg.denm->denm.location = vanetza::asn1::allocate<LocationContainer_t>();
-        auto& loc = *msg.denm->denm.location;
-        
-        if (j["location"].contains("eventSpeed")) {
-            loc.eventSpeed = vanetza::asn1::allocate<Speed_t>();
-            loc.eventSpeed->speedValue = static_cast<int16_t>(j["location"]["eventSpeed"].get<double>() * 100.0);
-            loc.eventSpeed->speedConfidence = j["location"]["speedConfidence"];
-        }
-        
-        if (j["location"].contains("eventHeading")) {
-            loc.eventPositionHeading = vanetza::asn1::allocate<Heading_t>();
-            loc.eventPositionHeading->headingValue = static_cast<int16_t>(j["location"]["eventHeading"].get<double>() * 10.0);
-            loc.eventPositionHeading->headingConfidence = j["location"]["headingConfidence"];
-        }
-    }
-    
-    return msg;
+	DenmMessage msg;
+
+	// Header
+	msg.denm->header.protocolVersion = j["header"]["protocolVersion"];
+	msg.denm->header.messageID		 = j["header"]["messageId"];
+	msg.denm->header.stationID		 = j["header"]["stationId"];
+
+	// Management Container
+	auto& mgmt						   = msg.denm->denm.management;
+	mgmt.actionID.originatingStationID = j["management"]["actionId"];
+	mgmt.detectionTime				   = createItsTimestamp(std::time(nullptr)); // Current time
+	mgmt.referenceTime				   = createItsTimestamp(std::time(nullptr)); // Current time
+	mgmt.stationType				   = j["management"]["stationType"];
+
+	// Event Position
+	mgmt.eventPosition.latitude =
+	  static_cast<int32_t>(j["management"]["eventPosition"]["latitude"].get<double>() * 10000000.0);
+	mgmt.eventPosition.longitude =
+	  static_cast<int32_t>(j["management"]["eventPosition"]["longitude"].get<double>() * 10000000.0);
+	mgmt.eventPosition.altitude.altitudeValue =
+	  static_cast<int32_t>(j["management"]["eventPosition"]["altitude"].get<double>() * 100.0);
+
+	// Optional Situation Container
+	if (j.contains("situation")) {
+		msg.denm->denm.situation   = vanetza::asn1::allocate<SituationContainer_t>();
+		auto& sit				   = *msg.denm->denm.situation;
+		sit.informationQuality	   = j["situation"]["informationQuality"];
+		sit.eventType.causeCode	   = j["situation"]["causeCode"];
+		sit.eventType.subCauseCode = j["situation"]["subCauseCode"];
+	}
+
+	// Optional Location Container
+	if (j.contains("location")) {
+		msg.denm->denm.location = vanetza::asn1::allocate<LocationContainer_t>();
+		auto& loc				= *msg.denm->denm.location;
+
+		if (j["location"].contains("eventSpeed")) {
+			loc.eventSpeed					= vanetza::asn1::allocate<Speed_t>();
+			loc.eventSpeed->speedValue		= static_cast<int16_t>(j["location"]["eventSpeed"].get<double>() * 100.0);
+			loc.eventSpeed->speedConfidence = j["location"]["speedConfidence"];
+		}
+
+		if (j["location"].contains("eventHeading")) {
+			loc.eventPositionHeading = vanetza::asn1::allocate<Heading_t>();
+			loc.eventPositionHeading->headingValue =
+			  static_cast<int16_t>(j["location"]["eventHeading"].get<double>() * 10.0);
+			loc.eventPositionHeading->headingConfidence = j["location"]["headingConfidence"];
+		}
+	}
+
+	return msg;
 }
 
 std::vector<unsigned char> DenmMessage::getUperEncoded() const {

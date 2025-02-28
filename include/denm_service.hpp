@@ -4,17 +4,14 @@
 #include <atomic>
 #include <crow.h>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <set>
 #include <string>
 #include <thread>
-#include <nlohmann/json.hpp>
 
 class DenmService {
 public:
-	DenmService(
-				const std::string& http_host,
-				int http_port,
-				int ws_port);
+	DenmService(const std::string& http_host, int http_port, int ws_port);
 
 	~DenmService();
 
@@ -31,11 +28,9 @@ private:
 	void run_http_server();
 	void broadcast_denm(const crow::json::rvalue& denm_message);
 
-
 	std::string http_host_;
 	int http_port_;
 	int ws_port_;
-
 
 	std::atomic<bool> running_{false};
 
@@ -46,6 +41,4 @@ private:
 
 	std::thread http_thread_;
 	std::thread ws_thread_;
-
-
 };

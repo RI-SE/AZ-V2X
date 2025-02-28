@@ -4,11 +4,11 @@
 #include "crow.h"
 #include <chrono>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vanetza/asn1/denm.hpp>
 #include <vanetza/btp/data_request.hpp>
 #include <vector>
-#include <nlohmann/json.hpp>
 class DenmMessage {
 public:
 	DenmMessage();
