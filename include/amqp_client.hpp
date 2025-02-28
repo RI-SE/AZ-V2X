@@ -34,9 +34,12 @@ private:
     std::string address_;
 
     // Handler methods
+    void on_connection_open(proton::connection& c) override;
     void on_sender_open(proton::sender& s) override;
     void on_sendable(proton::sender& s) override;
     void on_error(const proton::error_condition& e) override;
+    void on_transport_error(proton::transport& t) override;
+    void on_connection_error(proton::connection& c) override;
     
     proton::work_queue* work_queue();
     void do_send(const proton::message& m);

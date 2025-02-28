@@ -55,15 +55,19 @@ proton::work_queue* sender::work_queue() {
 	return work_queue_;
 }
 
+void sender::on_connection_open(proton::connection& c) {
+	spdlog::info("Connection opened successfully");
+	spdlog::debug("  Remote container: {}", c.container_id());
+}
+
 void sender::on_sender_open(proton::sender& s) {
 	std::lock_guard<std::mutex> l(lock_);
-	sender_		= s;
+	sender_ = s;
 	work_queue_ = &s.work_queue();
-
-	spdlog::info("Client sender opened.");
-	spdlog::info("  Target address: '{}'", s.target().address());
-	spdlog::info("  Target dynamic: {}", s.target().dynamic());
-	spdlog::info("  Connection target: '{}'", s.connection().container_id());
+	
+	spdlog::debug("Sender opened successfully");
+	spdlog::debug("  Remote container: {}", s.connection().container_id());
+	spdlog::debug("  Target address: {}", s.target().address());
 }
 
 void sender::on_sendable(proton::sender& s) {
@@ -82,7 +86,15 @@ void sender::do_send(const proton::message& m) {
 
 void sender::on_error(const proton::error_condition& e) {
 	spdlog::error("Unexpected error: {}", e.what());
-	exit(1);
+	throw std::runtime_error(e.what());
+}
+
+void sender::on_transport_error(proton::transport& t) {
+	spdlog::error("Transport error: {}", t.error().what());
+}
+
+void sender::on_connection_error(proton::connection& c) {
+	spdlog::error("Connection error: {}", c.error().what());
 }
 
 // Receiver implementation
@@ -96,10 +108,11 @@ receiver::receiver(proton::container& cont,
 	spdlog::info("Creating receiver with URL: {} and address: {}", url, address);
 
 	proton::receiver_options ro;
-	ro.credit_window(10)
+	ro.source(proton::source_options()
+		.address(address)
+		.dynamic(false))
+	  .credit_window(1000)  // Match Java client's credit window
 	  .auto_accept(true)
-	  .source(proton::source_options().address(address))
-	  .target(proton::target_options().address(name + "-target"))
 	  .handler(*this);
 
 	cont.open_receiver(url, ro);
