@@ -1,12 +1,17 @@
 #include "interchange_service.hpp"
 #include "denm_message.hpp"
+#include "geo_utils.hpp"
 #include <proton/connection_options.hpp>
+#include <proton/reconnect_options.hpp>
 #include <spdlog/spdlog.h>
 
-InterchangeService::InterchangeService(const std::string& amqp_url,
-                                     const std::string& amqp_send_address,
-                                     const std::string& amqp_receive_address,
-                                     const std::string& cert_dir) :
+InterchangeService::InterchangeService(
+                const std::string& username,
+                const std::string& amqp_url,
+                const std::string& amqp_send_address,
+                const std::string& amqp_receive_address,
+                const std::string& cert_dir) :
+    username_(username),
     amqp_url_(amqp_url),
     amqp_send_address_(amqp_send_address),
     amqp_receive_address_(amqp_receive_address),
@@ -28,26 +33,29 @@ void InterchangeService::setupContainerOptions() {
     
     if (!cert_dir_.empty()) {
         try {
-            ssl_certificate client_cert = platform_certificate("client", cert_dir_);
-            std::string server_CA = platform_CA("ca");
+            ssl_certificate client_cert = platform_certificate(username_, cert_dir_);
+            std::string server_CA = platform_CA("truststore");
             
             proton::ssl_client_options ssl_cli(client_cert, server_CA, proton::ssl::VERIFY_PEER);
             conn_opts.ssl_client_options(ssl_cli);
             spdlog::info("SSL enabled for AMQP connection");
         } catch (const std::exception& e) {
             spdlog::error("Failed to configure SSL: {}", e.what());
-            throw;  // Re-throw as this was explicitly requested
+            throw;
         }
-    } else {
-        spdlog::info("SSL disabled for AMQP connection");
     }
 
-    // Setup basic connection options
-    conn_opts.user("guest")
-            .password("guest")
+    // Match Java client configuration
+    conn_opts.user(username_)
             .sasl_enabled(true)
-            .sasl_allowed_mechs("PLAIN ANONYMOUS")
-            .container_id("az-v2x-service");
+            .sasl_allowed_mechs("EXTERNAL PLAIN")
+            .container_id(username_ + "-az-client");
+
+    // Add retry mechanism
+    conn_opts.reconnect(proton::reconnect_options()
+        .delay(proton::duration(1000))  // 1 second initial delay
+        .max_delay(proton::duration(10000))  // 10 seconds max delay
+        .max_attempts(5));  // Maximum 5 retry attempts
 
     amqp_container_->client_connection_options(conn_opts);
 }
@@ -66,28 +74,54 @@ void InterchangeService::start() {
     });
 
     // Setup sender
-    amqp_sender_ = std::make_unique<sender>(
-        *amqp_container_, amqp_url_, amqp_send_address_, "denm-sender");
-
+    if (!amqp_send_address_.empty()) { setupAmqpSender(); }
     // Setup receiver
-    setupAmqpReceiver();
+    if (!amqp_receive_address_.empty()) { setupAmqpReceiver(); }
+}
+
+void InterchangeService::setupAmqpSender() {
+    // Setup sender with retry
+    int retry_count = 0;
+    const int max_retries = 5;
+    while (retry_count < max_retries) {
+        try {
+            amqp_sender_ = std::make_unique<sender>(
+                *amqp_container_, 
+                amqp_url_, 
+                amqp_send_address_, 
+                username_ + "-az-sender"
+            );
+            break;
+        } catch (const std::exception& e) {
+            spdlog::warn("Failed to create sender (attempt {}/{}): {}", 
+                        retry_count + 1, max_retries, e.what());
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            retry_count++;
+        }
+    }
+
+    if (!amqp_sender_) {
+        throw std::runtime_error("Failed to create sender after max retries");
+    }
 }
 
 void InterchangeService::setupAmqpReceiver() {
     amqp_receiver_ = std::make_unique<receiver>(
-        *amqp_container_, amqp_url_, amqp_receive_address_, "denm-receiver");
-
+        *amqp_container_, amqp_url_, amqp_receive_address_, username_ + "-az-receiver");
+    
     receiver_thread_ = std::thread([this]() {
         while (running_) {
             try {
                 proton::message msg = amqp_receiver_->receive();
+                spdlog::debug("Received DENM message");
                 if (msg.body().type() == proton::BINARY) {
                     auto data = proton::get<proton::binary>(msg.body());
                     DenmMessage denm;
                     denm.fromUper(data);
-                    
                     // Publish received DENM to event bus
                     EventBus::getInstance().publish("denm.incoming", denm.toJson());
+                } else {
+                    spdlog::error("Received non-binary message");
                 }
             } catch (const std::exception& e) {
                 if (running_) {
@@ -99,20 +133,50 @@ void InterchangeService::setupAmqpReceiver() {
     });
 }
 
-void InterchangeService::handleOutgoingDenm(const nlohmann::json& denm) {
+void InterchangeService::handleOutgoingDenm(const nlohmann::json& j) {
     try {
-        // Create and encode DENM message
-        DenmMessage denmMsg = DenmMessage::fromJson(denm);
-        auto encoded = denmMsg.getUperEncoded();
 
-        // Create and send AMQP message
         proton::message amqp_msg;
-        amqp_msg.body(proton::binary(encoded.begin(), encoded.end()));
-        // Set other AMQP properties as before...
+        // Set AMQP headers
+        amqp_msg.durable(true);
+        amqp_msg.ttl(proton::duration(3600000)); // 1 hour TTL
+        amqp_msg.priority(1);
+        amqp_msg.user(username_);
+        amqp_msg.to(amqp_send_address_);
+
+        auto& props = amqp_msg.properties();  
         
+        // Set required properties
+        props.put("messageType", j["messageType"].get<std::string>());
+        props.put("protocolVersion", j["protocolVersion"].get<std::string>());
+        props.put("publisherId", j["publisherId"].get<std::string>());
+        props.put("publicationId", j["publicationId"].get<std::string>());
+        props.put("originatingCountry", j["originatingCountry"].get<std::string>());
+        props.put("causeCode", j["data"]["situation"]["causeCode"].get<int>());
+
+        // Calculate quadTree
+        std::string quadTree = calculateQuadTree(j["latitude"].get<double>(), j["longitude"].get<double>());
+        spdlog::debug("QuadTree: {}", quadTree);
+        auto formattedQuadTree = "," + quadTree + ",";
+        props.put("quadTree", formattedQuadTree);
+
+        // Create binary message
+        DenmMessage denm = DenmMessage::fromJson(j["data"]);
+        auto raw_body = denm.getUperEncoded();
+        
+        // Convert std::vector<unsigned char> to proton::binary
+        proton::binary body(raw_body.begin(), raw_body.end());
+        amqp_msg.body(body);
         amqp_sender_->send(amqp_msg);
+        
+        spdlog::debug("Successfully sent DENM message");
+        
+    } catch (const nlohmann::json::exception& e) {
+        spdlog::error("JSON error while processing DENM: {}", e.what());
+        throw;
     } catch (const std::exception& e) {
         spdlog::error("Failed to send DENM: {}", e.what());
+        throw;
     }
 }
 

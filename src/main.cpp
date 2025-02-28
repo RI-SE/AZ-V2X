@@ -32,17 +32,21 @@ int main(int argc, char** argv) {
 			 po::value<std::string>()->default_value(
 				 getenv("LOG_LEVEL") ? getenv("LOG_LEVEL") : "info"), 
 			 "logging level (debug, info, warn, error)")
+			("username,u", 
+			 po::value<std::string>()->default_value(
+				 getenv("USERNAME") ? getenv("USERNAME") : "Astazero"), 
+			 "Organization/User-name")
 			("amqp-url", 
 			 po::value<std::string>()->default_value(
-				 getenv("AMQP_URL") ? getenv("AMQP_URL") : "amqp://localhost:5672"), 
-			 "AMQP broker URL")
+				 getenv("AMQP_URL") ? getenv("AMQP_URL") : "amqps://localhost:5671"), 
+			 "AMQP(S) broker URL")
 			("amqp-send", 
 			 po::value<std::string>()->default_value(
-				 getenv("AMQP_SEND") ? getenv("AMQP_SEND") : "examples"), 
+				 getenv("AMQP_SEND") ? getenv("AMQP_SEND") : ""), 
 			 "AMQP send address")
 			("amqp-receive", 
 			 po::value<std::string>()->default_value(
-				 getenv("AMQP_RECEIVE") ? getenv("AMQP_RECEIVE") : "examples"), 
+				 getenv("AMQP_RECEIVE") ? getenv("AMQP_RECEIVE") : ""), 
 			 "AMQP receive address")
 			("http-host", 
 			 po::value<std::string>()->default_value(
@@ -55,15 +59,8 @@ int main(int argc, char** argv) {
 			("ws-port", 
 			 po::value<int>()->default_value(
 				 getenv("WS_PORT") ? std::stoi(getenv("WS_PORT")) : 8081), 
-			 "WebSocket server port")
-			("receiver", 
-			 po::value<bool>()->default_value(
-				 getenv("RECEIVER") ? std::string(getenv("RECEIVER")) == "true" : true), 
-			 "Enable receiver mode")
-			("sender", 
-			 po::value<bool>()->default_value(
-				 getenv("SENDER") ? std::string(getenv("SENDER")) == "true" : true), 
-			 "Enable sender mode");
+			 "WebSocket server port");
+
 
 		po::variables_map vm;
 		po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -102,6 +99,7 @@ int main(int argc, char** argv) {
 
 		// Create services
 		auto interchange = std::make_unique<InterchangeService>(
+			vm["username"].as<std::string>(),
 			vm["amqp-url"].as<std::string>(),
 			vm["amqp-send"].as<std::string>(),
 			vm["amqp-receive"].as<std::string>(),

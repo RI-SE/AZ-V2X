@@ -11,7 +11,8 @@
 
 class InterchangeService {
 public:
-    InterchangeService(const std::string& amqp_url,
+    InterchangeService(const std::string& username,
+                      const std::string& amqp_url,
                       const std::string& amqp_send_address,
                       const std::string& amqp_receive_address,
                       const std::string& cert_dir);
@@ -22,8 +23,10 @@ public:
 private:
     void handleOutgoingDenm(const nlohmann::json& denm);
     void setupAmqpReceiver();
+    void setupAmqpSender();
     void setupContainerOptions();
     
+    std::string username_;
     std::string amqp_url_;
     std::string amqp_send_address_;
     std::string amqp_receive_address_;
