@@ -26,12 +26,20 @@ $ ./AZ-V2X -c ../ssl-certs -l debug -u <COMMON_NAME> --amqp-url=amqps://bouvet.p
 
 ### Build docker image
 ```bash
-$ docker build -t az-v2x -f .devcontainer/Dockerfile .
+$ docker build --network=host -t az-v2x -f .devcontainer/Dockerfile .
 ```
 
 ### Run docker image
 ```bash
-$ docker run -p 8080:8080 -e CERT_DIR=../ssl-certs -e AMQP_URL=amqps://bouvet.pilotinterchange.eu:5671 -e AMQP_SEND=del-123123 -e AMQP_RECEIVE=loc-123123 -e LOG_LEVEL=debug -e USERNAME=<COMMON_NAME> az-v2x
+$ docker run --network=host \
+  -v $(pwd)/ssl-certs:/workspace/ssl-certs \
+  -e CERT_DIR=/workspace/ssl-certs \
+  -e AMQP_URL=amqps://bouvet.pilotinterchange.eu:5671 \
+  -e AMQP_SEND=del-123123 \
+  -e AMQP_RECEIVE=loc-123123 \
+  -e LOG_LEVEL=debug \
+  -e USERNAME=<COMMON_NAME>  \
+  az-v2x
 ```
 
 ### SSL certificates
