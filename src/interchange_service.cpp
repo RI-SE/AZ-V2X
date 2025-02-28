@@ -146,7 +146,7 @@ void InterchangeService::handleOutgoingDenm(const nlohmann::json& j) {
 
         auto& props = amqp_msg.properties();  
         
-        // Set required properties
+        // Set mandatory properties
         props.put("messageType", j["messageType"].get<std::string>());
         props.put("protocolVersion", j["protocolVersion"].get<std::string>());
         props.put("publisherId", j["publisherId"].get<std::string>());
@@ -154,11 +154,31 @@ void InterchangeService::handleOutgoingDenm(const nlohmann::json& j) {
         props.put("originatingCountry", j["originatingCountry"].get<std::string>());
         props.put("causeCode", j["data"]["situation"]["causeCode"].get<int>());
 
-        // Calculate quadTree
-        std::string quadTree = calculateQuadTree(j["latitude"].get<double>(), j["longitude"].get<double>());
-        spdlog::debug("QuadTree: {}", quadTree);
-        auto formattedQuadTree = "," + quadTree + ",";
-        props.put("quadTree", formattedQuadTree);
+        // Calculate quadTree unless it is already present
+        if (j.contains("quadTree")) {
+            props.put("quadTree", j["quadTree"].get<std::string>());
+
+        } else {
+            std::string quadTree = calculateQuadTree(j["latitude"].get<double>(), j["longitude"].get<double>());
+            spdlog::debug("Calculated quad tree: {}", quadTree);
+            auto formattedQuadTree = "," + quadTree + ",";
+            props.put("quadTree", formattedQuadTree);
+        }
+
+        
+        // Set optional properties if present
+        if (j.contains("shardId")) {
+            props.put("shardId", j["shardId"].get<int>());
+        }
+        if (j.contains("shardCount")) {
+            props.put("shardCount", j["shardCount"].get<int>());
+        }
+        if (j.contains("timestamp")) {
+            props.put("timestamp", j["timestamp"].get<std::string>());
+        }
+        if (j.contains("relation")) {
+            props.put("relation", j["relation"].get<std::string>());
+        }
 
         // Create binary message
         DenmMessage denm = DenmMessage::fromJson(j["data"]);
