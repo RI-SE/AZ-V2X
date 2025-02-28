@@ -133,9 +133,6 @@ void DenmService::setupRoutes() {
 
 void DenmService::handleDenmPost(const crow::request& req, crow::response& res) {
     try {
-        // Debug log the raw request body
-        spdlog::debug("Received DENM request body: {}", req.body);
-
         // Parse the JSON request
         auto j = crow::json::load(req.body);
         if (!j) {
@@ -149,9 +146,6 @@ void DenmService::handleDenmPost(const crow::request& req, crow::response& res) 
         
         // Debug log the parsed JSON
         spdlog::debug("Parsed DENM JSON: {}", denm_json.dump(2));
-
-        // Create and validate DENM message
-        DenmMessage denm = DenmMessage::fromJson(denm_json);
         
         // Publish the DENM message to the event bus
         EventBus::getInstance().publish("denm.outgoing", denm_json);
@@ -194,6 +188,7 @@ void DenmService::stop() {
 
 // New helper method to broadcast a message to all connected WebSocket clients.
 void DenmService::broadcastMessage(const std::string& message) {
+	spdlog::debug("Broadcasting message to WebSocket clients: {}", message);
 	std::lock_guard<std::mutex> lock(ws_connections_mutex_);
 	for (auto* conn : ws_connections_) {
 		conn->send_text(message);
