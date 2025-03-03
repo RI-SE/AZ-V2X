@@ -5,6 +5,6 @@
 
 // Calculate quadTree value for given lat/lon coordinates
 // Returns an 18-character quadTree string
-std::string calculateQuadTree(double lat, double lon);
+std::string calculateQuadTree(double lat, double lon, int zoom=18);
 
 #endif // GEO_UTILS_HPP

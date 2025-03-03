@@ -157,8 +157,8 @@ void InterchangeService::handleOutgoingDenm(const nlohmann::json& j) {
 
 		} else {
 			std::string quadTree = calculateQuadTree(j["latitude"].get<double>(), j["longitude"].get<double>());
-			spdlog::debug("Calculated quad tree: {}", quadTree);
 			auto formattedQuadTree = "," + quadTree + ",";
+			spdlog::debug("Calculated quad tree: {}", formattedQuadTree);
 			props.put("quadTree", formattedQuadTree);
 		}
 
