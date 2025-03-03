@@ -83,7 +83,7 @@ curl -X POST http://localhost:8080/denm \
   "longitude": 12.770160,
   "latitude": 57.772987,
   "shardId": 1,
-  "shardCount": 1
+  "shardCount": 1,
   "data": {
     "header": {
       "protocolVersion": 2,
@@ -92,6 +92,8 @@ curl -X POST http://localhost:8080/denm \
     },
     "management": {
       "actionId": 20,
+      "detectionTime": "2025-03-03T16:30:00",
+      "referenceTime": "2025-03-03T16:30:00",
       "stationType": 3,
       "eventPosition": {
         "latitude": 57.772987,
@@ -127,6 +129,8 @@ data:
   - `stationId`: Station identifier (integer, default: 1234567)
 - `management`: Management (object)
   - `actionId`: Action identifier (integer, default: 1)
+  - `detectionTime`: Detection time in ISO 8601 format (string, optional, default: current time)
+  - `referenceTime`: Reference time in ISO 8601 format (string, optional, default: current time)
   - `stationType`: Station type (integer, default: 3)
   - `eventPosition`: Event position (object)
     - `latitude`: Latitude in degrees (number, default: 0)

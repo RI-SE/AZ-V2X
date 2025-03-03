@@ -165,6 +165,18 @@ nlohmann::json DenmMessage::toJson() const {
 	return j;
 }
 
+// Add this helper function
+time_t DenmMessage::parseIsoTimestamp(const std::string& iso_timestamp) {
+	std::tm tm = {};
+	std::istringstream ss(iso_timestamp);
+	ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+	if (ss.fail()) {
+		throw std::runtime_error("Failed to parse ISO timestamp: " + iso_timestamp);
+	}
+	return std::mktime(&tm);
+}
+
+// Modify the fromJson method to handle ISO timestamps
 DenmMessage DenmMessage::fromJson(const nlohmann::json& j) {
 	DenmMessage msg;
 
@@ -176,8 +188,24 @@ DenmMessage DenmMessage::fromJson(const nlohmann::json& j) {
 	// Management Container
 	auto& mgmt						   = msg.denm->denm.management;
 	mgmt.actionID.originatingStationID = j["management"]["actionId"];
-	mgmt.detectionTime				   = createItsTimestamp(std::time(nullptr)); // Current time
-	mgmt.referenceTime				   = createItsTimestamp(std::time(nullptr)); // Current time
+	
+	// Handle detection and reference times
+	if (j["management"].contains("detectionTime")) {
+		mgmt.detectionTime = createItsTimestamp(
+			parseIsoTimestamp(j["management"]["detectionTime"].get<std::string>())
+		);
+	} else {
+		mgmt.detectionTime = createItsTimestamp(std::time(nullptr));
+	}
+
+	if (j["management"].contains("referenceTime")) {
+		mgmt.referenceTime = createItsTimestamp(
+			parseIsoTimestamp(j["management"]["referenceTime"].get<std::string>())
+		);
+	} else {
+		mgmt.referenceTime = createItsTimestamp(std::time(nullptr));
+	}
+
 	mgmt.stationType				   = j["management"]["stationType"];
 
 	// Event Position
