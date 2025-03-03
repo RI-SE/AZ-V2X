@@ -56,42 +56,132 @@ void DenmService::setupRoutes() {
 		swagger["openapi"] = "3.0.0";
 
 		// Info object
-		swagger["info"]["title"]	   = "DENM Service API Documentation";
-		swagger["info"]["version"]	   = "1.0.0";
+		swagger["info"]["title"] = "DENM Service API Documentation";
+		swagger["info"]["version"] = "1.0.0";
 		swagger["info"]["description"] = "API for sending DENM messages via AMQP";
 
 		// Paths object
-		auto& denm_path		 = swagger["paths"]["/denm"]["post"];
+		auto& denm_path = swagger["paths"]["/denm"]["post"];
 		denm_path["summary"] = "Send a DENM message";
+		denm_path["description"] = "Send a Decentralized Environmental Notification Message (DENM) to the AMQP broker";
 
 		// Request body
-		auto& req_body		 = denm_path["requestBody"];
+		auto& req_body = denm_path["requestBody"];
 		req_body["required"] = true;
-		auto& content		 = req_body["content"]["application/json"]["schema"];
-		content["type"]		 = "object";
-		content["required"] =
-		  crow::json::wvalue::list{"stationId", "latitude", "longitude", "publisherId", "originatingCountry"};
+		auto& content = req_body["content"]["application/json"]["schema"];
+		content["type"] = "object";
+		content["required"] = crow::json::wvalue::list{
+			"publisherId", "publicationId", "originatingCountry", 
+			"protocolVersion", "messageType", "longitude", "latitude", 
+			"data"
+		};
 
-		// Properties
-		auto& properties						 = content["properties"];
-		properties["stationId"]["type"]			 = "integer";
-		properties["actionId"]["type"]			 = "integer";
-		properties["latitude"]["type"]			 = "number";
-		properties["longitude"]["type"]			 = "number";
-		properties["altitude"]["type"]			 = "number";
-		properties["causeCode"]["type"]			 = "integer";
-		properties["subCauseCode"]["type"]		 = "integer";
-		properties["publisherId"]["type"]		 = "string";
+		// Properties for application/header properties
+		auto& properties = content["properties"];
+		properties["publisherId"]["type"] = "string";
+		properties["publisherId"]["description"] = "Publisher identifier";
+		properties["publisherId"]["example"] = "SE12345";
+
+		properties["publicationId"]["type"] = "string";
+		properties["publicationId"]["description"] = "Publication identifier";
+		properties["publicationId"]["example"] = "SE12345:DENM-TEST";
+
 		properties["originatingCountry"]["type"] = "string";
+		properties["originatingCountry"]["description"] = "Two-letter country code";
+		properties["originatingCountry"]["example"] = "SE";
+
+		properties["protocolVersion"]["type"] = "string";
+		properties["protocolVersion"]["description"] = "Protocol version";
+		properties["protocolVersion"]["example"] = "DENM:1.3.1";
+
+		properties["messageType"]["type"] = "string";
+		properties["messageType"]["description"] = "Message type";
+		properties["messageType"]["example"] = "DENM";
+
+		properties["longitude"]["type"] = "number";
+		properties["longitude"]["description"] = "Longitude in degrees";
+		properties["longitude"]["example"] = 12.770160;
+
+		properties["latitude"]["type"] = "number";
+		properties["latitude"]["description"] = "Latitude in degrees";
+		properties["latitude"]["example"] = 57.772987;
+
+		properties["shardId"]["type"] = "integer";
+		properties["shardId"]["description"] = "Shard identifier (required if sharding is enabled)";
+		properties["shardId"]["default"] = 1;
+		properties["shardId"]["example"] = 1;
+
+		properties["shardCount"]["type"] = "integer";
+		properties["shardCount"]["description"] = "Shard count (required if sharding is enabled)";
+		properties["shardCount"]["default"] = 1;
+		properties["shardCount"]["example"] = 1;
+
+		// Data object (nested structure)
+		auto& data_props = properties["data"];
+		data_props["type"] = "object";
+		data_props["required"] = crow::json::wvalue::list{"header", "management", "situation"};
+
+		// Header object
+		auto& header_props = data_props["properties"]["header"];
+		header_props["type"] = "object";
+		header_props["required"] = crow::json::wvalue::list{"protocolVersion", "messageId", "stationId"};
+		header_props["properties"]["protocolVersion"]["type"] = "integer";
+		header_props["properties"]["protocolVersion"]["description"] = "Protocol version";
+		header_props["properties"]["protocolVersion"]["default"] = 2;
+		header_props["properties"]["messageId"]["type"] = "integer";
+		header_props["properties"]["messageId"]["description"] = "Message identifier";
+		header_props["properties"]["messageId"]["default"] = 1;
+		header_props["properties"]["stationId"]["type"] = "integer";
+		header_props["properties"]["stationId"]["description"] = "Station identifier";
+		header_props["properties"]["stationId"]["default"] = 1234567;
+
+		// Management object
+		auto& mgmt_props = data_props["properties"]["management"];
+		mgmt_props["type"] = "object";
+		mgmt_props["required"] = crow::json::wvalue::list{"actionId", "stationType", "eventPosition"};
+		mgmt_props["properties"]["actionId"]["type"] = "integer";
+		mgmt_props["properties"]["actionId"]["description"] = "Action identifier";
+		mgmt_props["properties"]["actionId"]["default"] = 1;
+		mgmt_props["properties"]["stationType"]["type"] = "integer";
+		mgmt_props["properties"]["stationType"]["description"] = "Station type";
+		mgmt_props["properties"]["stationType"]["default"] = 3;
+
+		// Event position object
+		auto& pos_props = mgmt_props["properties"]["eventPosition"];
+		pos_props["type"] = "object";
+		pos_props["required"] = crow::json::wvalue::list{"latitude", "longitude", "altitude"};
+		pos_props["properties"]["latitude"]["type"] = "number";
+		pos_props["properties"]["latitude"]["description"] = "Latitude in degrees";
+		pos_props["properties"]["latitude"]["default"] = 0;
+		pos_props["properties"]["longitude"]["type"] = "number";
+		pos_props["properties"]["longitude"]["description"] = "Longitude in degrees";
+		pos_props["properties"]["longitude"]["default"] = 0;
+		pos_props["properties"]["altitude"]["type"] = "number";
+		pos_props["properties"]["altitude"]["description"] = "Altitude in meters";
+		pos_props["properties"]["altitude"]["default"] = 0;
+
+		// Situation object
+		auto& sit_props = data_props["properties"]["situation"];
+		sit_props["type"] = "object";
+		sit_props["required"] = crow::json::wvalue::list{"informationQuality", "causeCode", "subCauseCode"};
+		sit_props["properties"]["informationQuality"]["type"] = "integer";
+		sit_props["properties"]["informationQuality"]["description"] = "Information quality";
+		sit_props["properties"]["informationQuality"]["default"] = 0;
+		sit_props["properties"]["causeCode"]["type"] = "integer";
+		sit_props["properties"]["causeCode"]["description"] = "Cause code";
+		sit_props["properties"]["causeCode"]["default"] = 1;
+		sit_props["properties"]["subCauseCode"]["type"] = "integer";
+		sit_props["properties"]["subCauseCode"]["description"] = "Sub cause code";
+		sit_props["properties"]["subCauseCode"]["default"] = 0;
 
 		// Responses
-		auto& responses													  = denm_path["responses"];
-		responses["200"]["description"]									  = "DENM message sent successfully";
+		auto& responses = denm_path["responses"];
+		responses["200"]["description"] = "DENM message sent successfully";
 		responses["200"]["content"]["application/json"]["schema"]["type"] = "object";
 		responses["200"]["content"]["application/json"]["schema"]["properties"]["status"]["type"] = "string";
 
-		responses["400"]["description"]															 = "Invalid request";
-		responses["400"]["content"]["application/json"]["schema"]["type"]						 = "object";
+		responses["400"]["description"] = "Invalid request";
+		responses["400"]["content"]["application/json"]["schema"]["type"] = "object";
 		responses["400"]["content"]["application/json"]["schema"]["properties"]["error"]["type"] = "string";
 
 		return crow::response(200, swagger);

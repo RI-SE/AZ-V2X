@@ -78,11 +78,10 @@ curl -X POST http://localhost:8080/denm \
   "publisherId": "SE12345",
   "publicationId": "SE12345:DENM-TEST",
   "originatingCountry": "SE",
-  "protocolVersion": "DENM:1.2.2",
+  "protocolVersion": "DENM:1.3.1",
   "messageType": "DENM",
-  "longitude": 12.774981,
-  "latitude": 57.779017,
-  "quadTree": "120032030221",
+  "longitude": 12.770160,
+  "latitude": 57.772987,
   "shardId": 1,
   "shardCount": 1
   "data": {
@@ -93,16 +92,16 @@ curl -X POST http://localhost:8080/denm \
     },
     "management": {
       "actionId": 20,
-      "stationType": 5,
+      "stationType": 3,
       "eventPosition": {
-        "latitude": 57.779017,
-        "longitude": 12.774981,
+        "latitude": 57.772987,
+        "longitude": 12.770160,
         "altitude": 190.0
       }
     },
     "situation": {
       "informationQuality": 1,
-      "causeCode": 92,
+      "causeCode": 2,
       "subCauseCode": 0
     }
   }
