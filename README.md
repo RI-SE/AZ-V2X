@@ -6,13 +6,12 @@ This project uses the V2X library [Vanetza](https://www.vanetza.org/) to provide
 This project is setup to use a dev container. To use the dev container you will need to have Docker installed on your machine and preferably Visual Studio Code or a derivative. 
 
 ### To use the dev container
+0. Fetch the submodules "$ git submodule update --init --recursive"
 1. Open the project in Visual Studio Code
 2. Install the Remote - Containers extension
 3. You should be promted to reopen the project in a container. If not, you can open the command palette and search for "Remote-Containers: Reopen in Container"
 
-# Build and Run
-
-### Build native application
+### Build native application (in the dev container)
 ```bash
 $ mkdir build && cd build
 $ cmake .. && cmake --build .
@@ -24,7 +23,7 @@ $ ./AZ-V2X --help  # Show available options
 $ ./AZ-V2X -c ../ssl-certs -l debug -u <COMMON_NAME> --amqp-url=amqps://bouvet.pilotinterchange.eu:5671 --amqp-send=del-da0c2e16-1354-4a6c-bce6-654654665129 --amqp-receive=loc-1d23349e-c70e-4d73-b5fd-f654654654657
 ```
 
-### Build docker image
+## Build docker image (on your local machine)
 ```bash
 $ docker build --network=host -t az-v2x -f .devcontainer/Dockerfile .
 ```
@@ -47,6 +46,8 @@ The application requires SSL certificates to be present in the directory specifi
 - '<COMMON_NAME>.key'
 - '<COMMON_NAME>.crt'
 - 'truststore.pem'
+
+If connecting to bouvet.pilotinterchange.eu, you can get the certificates from https://napcore.npra.io/certificate. Just rename the files to match the above requirements.
 
 ### Command line options (Can also be set via environment variables):
 
@@ -145,6 +146,13 @@ data:
 Header/Application properties:
 - `shardId`: Shard identifier (integer, default: 1) Mandatory if sharding is enabled in capability
 - `shardCount`: Shard count (integer, default: 1) Mandatory if sharding is enabled in capability
+
+## WebSocket
+
+The service also provides a WebSocket endpoint for sending DENM messages to the AMQP broker. The WebSocket endpoint is available at `ws://localhost:8081/ws`.
+
+
+
 
 
 ## Configure a local AMQP broker for development
