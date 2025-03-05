@@ -11,20 +11,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Include external dependencies
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/fetchExternalDeps.cmake")
 
-# Add Crow
-FetchContent_Declare(
-    crow
-    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
-    GIT_TAG v1.0+5
-)
-FetchContent_MakeAvailable(crow)
-
-# Add nlohmann/json
-FetchContent_Declare(
-    json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
-)
-FetchContent_MakeAvailable(json)
 
 # Enable testing
 enable_testing()
@@ -39,13 +25,6 @@ pkg_check_modules(QPID REQUIRED IMPORTED_TARGET
     libqpid-proton-cpp
 )
 
-# Add GTest
-include(FetchContent)
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG release-1.12.1
-)
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)

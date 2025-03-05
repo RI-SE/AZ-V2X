@@ -13,29 +13,32 @@ else()
 	set(FETCHCONTENT_UPDATES_DISCONNECTED OFF)
 endif()
 
-# Declare dependencies:
-# FetchContent_Declare(websocketpp
-# 	GIT_REPOSITORY     https://github.com/RI-SE/websocketpp
-# 	GIT_TAG            0.8.3
-# )
+# Add spdlog
 FetchContent_Declare(spdlog
 	GIT_REPOSITORY     https://github.com/gabime/spdlog
 	GIT_TAG            v1.9.2
 )
-# FetchContent_Declare(googletest
-# 	GIT_REPOSITORY     https://github.com/google/googletest.git
-# 	GIT_TAG            v1.13.0
-# )
-# FetchContent_Declare(nlohmann_json
-# 	GIT_REPOSITORY https://github.com/nlohmann/json.git
-# 	GIT_TAG v3.10.0
-# )
-# FetchContent_Declare(nlohmann_json_schema_validator
-# 	GIT_REPOSITORY https://github.com/pboettch/json-schema-validator.git
-# 	GIT_TAG 2.1.0
-# 	GIT_SHALLOW        OFF # pull whole git commit history
-# 	OVERRIDE_FIND_PACKAGE #use the json provided by FetchContent instead of using find_package
-# )
+
+# Add Crow
+FetchContent_Declare(
+    crow
+    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+    GIT_TAG v1.0+5
+)
+
+# Add nlohmann/json
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+)
+
+# Add GTest
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG release-1.12.1
+)
 
 # Include dependencies as subdirectories:
 
@@ -43,7 +46,8 @@ FetchContent_Declare(spdlog
 # include("${CMAKE_SOURCE_DIR}/cmake/websocketppOptions.cmake")
 
 FetchContent_MakeAvailable(
-	# websocketpp
 	spdlog
-	# googletest
+	crow
+	json
+	googletest
 )
