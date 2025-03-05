@@ -95,7 +95,7 @@ public:
 
 private:
 	// Helper functions for timestamp handling
-	static std::string formatItsTimestamp(const TimestampIts_t& timestamp);
+	static std::string formatToIso8601Timestamp(const TimestampIts_t& timestamp);
 	static TimestampIts_t createItsTimestamp(time_t unix_timestamp);
 	static time_t parseIsoTimestamp(const std::string& iso_timestamp);
 };

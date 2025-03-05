@@ -60,7 +60,7 @@ DenmMessage& DenmMessage::operator=(const DenmMessage& other) {
 }
 
 // Helper function implementation
-std::string DenmMessage::formatItsTimestamp(const TimestampIts_t& timestamp) {
+std::string DenmMessage::formatToIso8601Timestamp(const TimestampIts_t& timestamp) {
 	long msec_since_2004;
 	if (asn_INTEGER2long(&timestamp, &msec_since_2004) != 0) {
 		throw std::runtime_error("Failed to decode ITS timestamp");
@@ -76,7 +76,7 @@ std::string DenmMessage::formatItsTimestamp(const TimestampIts_t& timestamp) {
 	if (!tm) {
 		throw std::runtime_error("Failed to convert timestamp to UTC");
 	}
-	ss << std::put_time(tm, "%Y-%m-%d %H:%M:%S UTC");
+	ss << std::put_time(tm, "%Y-%m-%dT%H:%M:%S");
 	return ss.str();
 }
 
@@ -134,8 +134,8 @@ nlohmann::json DenmMessage::toJson() const {
 	// Management Container
 	auto& mgmt									  = denm->denm.management;
 	j["management"]["actionId"]					  = mgmt.actionID.originatingStationID;
-	j["management"]["detectionTime"]			  = formatItsTimestamp(mgmt.detectionTime);
-	j["management"]["referenceTime"]			  = formatItsTimestamp(mgmt.referenceTime);
+	j["management"]["detectionTime"]			  = formatToIso8601Timestamp(mgmt.detectionTime);
+	j["management"]["referenceTime"]			  = formatToIso8601Timestamp(mgmt.referenceTime);
 	j["management"]["stationType"]				  = mgmt.stationType;
 	j["management"]["eventPosition"]["latitude"]  = mgmt.eventPosition.latitude / 10000000.0;
 	j["management"]["eventPosition"]["longitude"] = mgmt.eventPosition.longitude / 10000000.0;
