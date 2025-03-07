@@ -294,12 +294,12 @@ std::vector<unsigned char> DenmMessage::getUperEncoded() const {
 	// Resize the buffer to the actual encoded size
 	buffer.resize(actual_size);
 
-	// Debug print the first few bytes of encoded data
+	// Debug print the encoded data
 	std::stringstream hex_output;
-	for (size_t i = 0; i < std::min(actual_size, size_t(16)); i++) {
+	for (size_t i = 0; i < actual_size; i++) {
 		hex_output << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(buffer[i]) << " ";
 	}
-	spdlog::debug("First 16 bytes of encoded data: {}", hex_output.str());
+	spdlog::debug("UPER encoded data: {}", hex_output.str());
 
 	return buffer;
 }
